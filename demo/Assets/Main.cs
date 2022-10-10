@@ -5,6 +5,8 @@ using Delaunay.Geo;
 using System.Linq;
 using Assets.Map;
 
+namespace PolygonMap {
+
 public class Main : MonoBehaviour
 {
     Map _map;
@@ -33,12 +35,14 @@ public class Main : MonoBehaviour
 
         _selector = GameObject.Find("Selector");
 
-        Random.seed = Seed;
+        Random.InitState(Seed);
             
-        _map = new Map();
+        // _map = new Map();
 
-        GameObject.Find("Main Camera").GetComponentInChildren<Camera>().Map = _map;
+        // GameObject.Find("Main Camera").GetComponentInChildren<Camera>().Map = _map;
 
-        new MapTexture(_textureScale).AttachTexture(GameObject.Find("Map"), _map);
+        // new MapTexture(_textureScale).AttachTexture(GameObject.Find("Map"), _map);
 	}
+}
+
 }

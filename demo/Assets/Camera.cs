@@ -2,6 +2,8 @@
 using System.Collections;
 using Assets.Map;
 
+namespace PolygonMap {
+    
 public class Camera : MonoBehaviour
 {
     public Map Map;
@@ -48,4 +50,6 @@ public class Camera : MonoBehaviour
             transform.parent.Translate(new Vector3(0, 0, _zoomSpeed));
         }
     }
+}
+
 }

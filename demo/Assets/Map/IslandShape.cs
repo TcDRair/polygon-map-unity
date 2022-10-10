@@ -15,9 +15,11 @@ namespace Assets.Map
 
         // The radial island radius is based on overlapping sine waves 
         public static float ISLAND_FACTOR = 1.07f;  // 1.0 means no small islands; 2.0 leads to a lot
-        public static float PERLIN_CHECK_VALUE = 0.3f;
+        public static float SEA_LEVEL;
+        static float SEA_LEVEL_GAP;
+        const float frequency = 2f;
 
-        public static System.Func<Vector2, bool> makeRadial()
+        public static System.Func<Vector2, bool> MakeRadial()
         {
             var bumps = Random.Range(1, 6);
             var startAngle = Random.value * 2 * Mathf.PI;
@@ -29,7 +31,7 @@ namespace Assets.Map
 
             var dipWidth = (end - start) * random + start;
 
-            System.Func<Vector2, bool> inside = q =>
+            return q =>
             {
                 var angle = Mathf.Atan2(q.y, q.x);
                 var length = 0.5 * (Mathf.Max(Mathf.Abs(q.x), Mathf.Abs(q.y)) + q.magnitude);
@@ -42,35 +44,40 @@ namespace Assets.Map
                 {
                     r1 = r2 = 0.2;
                 }
-                var result = (length < r1 || (length > r1 * ISLAND_FACTOR && length < r2));
+                var result = length < r1 || (length > r1 * ISLAND_FACTOR && length < r2);
                 return result;
             };
-
-            return inside;
         }
 
         // The Perlin-based island combines perlin noise with the radius
-        public static System.Func<Vector2, bool> makePerlin()
+        /// <summary>
+        /// Perlin Noise를 기반으로 섬의 형태(외곽)을 생성하는 함수를 반환합니다.<br/>
+        /// 크기가 커지면 형태가 단순해지므로 저밀도의 마스크를 별도로 사용하는 것을 권장합니다.
+        /// </summary>
+        public static System.Func<Vector2, bool> MakePerlin(float width, float height, bool? gapDirection = null)
         {
-            var offset = Random.Range(0, 100000);
-            System.Func<Vector2, bool> inside = q =>
-            {
-                q = new Vector2(q.x / 25 - 1, q.y / 25 - 1);
-                var x = q.x + offset;
-                var y = q.y + offset;
-                var perlin = Mathf.PerlinNoise(x/10 , y/10);
-                var checkValue = (PERLIN_CHECK_VALUE + PERLIN_CHECK_VALUE * q.magnitude * q.magnitude);
-                var result = perlin > checkValue;
-                return result;
+            // 펄린 노이즈 맵은 주어진 위치에 항상 동일한 값을 가지므로 랜덤 오프셋을 시드로 설정합니다.
+            float offset = Random.value * 10000;
+            Vector2 freq = new Vector2(1/width, 1/height) * frequency * ZOOM_FACTOR * (Mathf.Min(width, height) / (int)Size.s4);
+            //? preset : seed 1404172320 / frequency/width^0.9f
+
+            if (gapDirection == null) { SEA_LEVEL = 0.5f; SEA_LEVEL_GAP = 0.25f; }
+            else {
+                SEA_LEVEL += (bool)gapDirection ? SEA_LEVEL_GAP : -SEA_LEVEL_GAP;
+                SEA_LEVEL_GAP /= 2f;
+            }
+
+            return q => {
+                float perlin = Mathf.PerlinNoise((q.x + offset)*freq.x, (q.y + offset)*freq.y); // 이 값은 0 ~ 1 사이의 값을 가지게 됩니다.
+                Vector2 dist = new(q.x*2/width - 1, q.y*2/height - 1); // distance from center (in ratio) : -1 ~ 1 사이의 값을 가집니다.
+                var ground = PERLIN_CHECK_VALUE - PERLIN_CHECK_VALUE * dist.sqrMagnitude; // 이 값은 적절한 비율로 조정됩니다.
+                return perlin + ground > SEA_LEVEL;
             };
-            return inside;
         }
+        public static float PERLIN_CHECK_VALUE = 0.3f;
+        private const float ZOOM_FACTOR = 2.5f;
 
         // The square shape fills the entire space with land
-        public static System.Func<Vector2, bool> makeSquare()
-        {
-            System.Func<Vector2, bool> inside = q => { return true; };
-            return inside;
-        }
+        public static System.Func<Vector2, bool> MakeSquare() => _ => true;
     }
 }

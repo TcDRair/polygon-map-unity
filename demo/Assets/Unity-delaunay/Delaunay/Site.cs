@@ -9,21 +9,20 @@ namespace Delaunay
 		
 	public sealed class Site: ICoord, IComparable
 	{
-		private static Stack<Site> _pool = new Stack<Site> ();
-		public static Site Create (Vector2 p, uint index, float weight, uint color)
+		private static Stack<Site> _pool = new Stack<Site>();
+		public static Site Create(Vector2 p, uint index, float weight, uint color)
 		{
 			if (_pool.Count > 0) {
-				return _pool.Pop ().Init (p, index, weight, color);
+				return _pool.Pop().Init(p, index, weight, color);
 			} else {
-				return new Site (p, index, weight, color);
+				return new Site(p, index, weight, color);
 			}
 		}
 		
-		internal static void SortSites (List<Site> sites)
-		{
-//			sites.sort(Site.compare);
-			sites.Sort (); // XXX: Check if this works
-		}
+		/*internal static void SortSites(List<Site> sites) {
+			// sites.sort(Site.compare);
+			sites.Sort(); // XXX: Check if this works
+		}*/
 
 		/**
 		 * sort sites on y, then x, coord
@@ -33,11 +32,11 @@ namespace Delaunay
 		 * haha "also" - means more than one responsibility...
 		 * 
 		 */
-		public int CompareTo (System.Object obj) // XXX: Really, really worried about this because it depends on how sorting works in AS3 impl - Julian
-		{
+		public int CompareTo(System.Object obj) {
+			// XXX: Really, really worried about this because it depends on how sorting works in AS3 impl - Julian
 			Site s2 = (Site)obj;
 
-			int returnValue = Voronoi.CompareByYThenX (this, s2);
+			int returnValue = Voronoi.CompareByYThenX(this, s2);
 			
 			// swap _siteIndex values if necessary to match new ordering:
 			uint tempIndex;
@@ -61,15 +60,12 @@ namespace Delaunay
 
 
 		private static readonly float EPSILON = .005f;
-		private static bool CloseEnough (Vector2 p0, Vector2 p1)
-		{
-			return Vector2.Distance (p0, p1) < EPSILON;
+		private static bool CloseEnough(Vector2 p0, Vector2 p1) {
+			return Vector2.Distance(p0, p1) < EPSILON;
 		}
 				
 		private Vector2 _coord;
-		public Vector2 Coord {
-			get { return _coord;}
-		}
+		public Vector2 Coord => _coord;
 		
 		public uint color;
 		public float weight;
@@ -78,100 +74,80 @@ namespace Delaunay
 		
 		// the edges that define this Site's Voronoi region:
 		private List<Edge> _edges;
-		internal List<Edge> edges {
-			get { return _edges;}
-		}
+		internal List<Edge> edges => _edges;
 		// which end of each edge hooks up with the previous edge in _edges:
 		private List<Side> _edgeOrientations;
 		// ordered list of points that define the region clipped to bounds:
 		private List<Vector2> _region;
 
-		private Site (Vector2 p, uint index, float weight, uint color)
-		{
-//			if (lock != PrivateConstructorEnforcer)
-//			{
-//				throw new Error("Site constructor is private");
-//			}
-			Init (p, index, weight, color);
+		private Site(Vector2 p, uint index, float weight, uint color) {
+			// if (lock != PrivateConstructorEnforcer) throw new Error("Site constructor is private");
+			Init(p, index, weight, color);
 		}
 		
-		private Site Init (Vector2 p, uint index, float weight, uint color)
-		{
+		private Site Init(Vector2 p, uint index, float weight, uint color) {
 			_coord = p;
 			_siteIndex = index;
 			this.weight = weight;
 			this.color = color;
-			_edges = new List<Edge> ();
+			_edges = new List<Edge>();
 			_region = null;
 			return this;
 		}
 		
-		public override string ToString ()
-		{
-			return "Site " + _siteIndex.ToString () + ": " + Coord.ToString ();
-		}
+		public override string ToString() => "Site " + _siteIndex.ToString() + ": " + Coord.ToString();
 		
-		private void Move (Vector2 p)
-		{
-			Clear ();
+		private void Move(Vector2 p) {
+			Clear();
 			_coord = p;
 		}
 		
-		public void Dispose ()
-		{
-//			_coord = null;
-			Clear ();
-			_pool.Push (this);
+		public void Dispose() {
+			// _coord = null;
+			Clear();
+			_pool.Push(this);
 		}
 		
-		private void Clear ()
-		{
+		private void Clear() {
 			if (_edges != null) {
-				_edges.Clear ();
+				_edges.Clear();
 				_edges = null;
 			}
 			if (_edgeOrientations != null) {
-				_edgeOrientations.Clear ();
+				_edgeOrientations.Clear();
 				_edgeOrientations = null;
 			}
 			if (_region != null) {
-				_region.Clear ();
+				_region.Clear();
 				_region = null;
 			}
 		}
 		
-		public void AddEdge (Edge edge)
-		{
-			_edges.Add (edge);
+		public void AddEdge(Edge edge) => _edges.Add(edge);
+		
+		
+		public Edge NearestEdge() {
+			_edges.Sort((Edge a, Edge b) => Edge.CompareSitesDistances(a, b));
+			return _edges[0];
 		}
 		
-		public Edge NearestEdge ()
-		{
-			_edges.Sort (delegate (Edge a, Edge b) {
-				return Edge.CompareSitesDistances (a, b);
-			});
-			return _edges [0];
-		}
-		
-		public List<Site> NeighborSites ()
-		{
+		public List<Site> NeighborSites() {
 			if (_edges == null || _edges.Count == 0) {
-				return new List<Site> ();
+				return new List<Site>();
 			}
 			if (_edgeOrientations == null) { 
-				ReorderEdges ();
+				ReorderEdges();
 			}
-			List<Site> list = new List<Site> ();
+			List<Site> list = new List<Site>();
 			Edge edge;
 			for (int i = 0; i < _edges.Count; i++) {
-				edge = _edges [i];
-				list.Add (NeighborSite (edge));
+				edge = _edges[i];
+				list.Add(NeighborSite(edge));
 			}
 			return list;
 		}
 			
-		private Site NeighborSite (Edge edge)
-		{
+		private Site NeighborSite(Edge edge) {
 			if (this == edge.leftSite) {
 				return edge.rightSite;
 			}
@@ -181,34 +157,31 @@ namespace Delaunay
 			return null;
 		}
 		
-		internal List<Vector2> Region (Rect clippingBounds)
-		{
+		internal List<Vector2> Region(Rect clippingBounds) {
 			if (_edges == null || _edges.Count == 0) {
-				return new List<Vector2> ();
+				return new List<Vector2>();
 			}
 			if (_edgeOrientations == null) { 
-				ReorderEdges ();
-				_region = ClipToBounds (clippingBounds);
-				if ((new Polygon (_region)).Winding () == Winding.CLOCKWISE) {
-					_region.Reverse ();
+				ReorderEdges();
+				_region = ClipToBounds(clippingBounds);
+				if ((new Polygon(_region)).Winding() == Winding.CLOCKWISE) {
+					_region.Reverse();
 				}
 			}
 			return _region;
 		}
 		
-		private void ReorderEdges ()
-		{
+		private void ReorderEdges() {
 			//trace("_edges:", _edges);
-			EdgeReorderer reorderer = new EdgeReorderer (_edges, VertexOrSite.VERTEX);
+			EdgeReorderer reorderer = new EdgeReorderer(_edges, VertexOrSite.VERTEX);
 			_edges = reorderer.edges;
 			//trace("reordered:", _edges);
 			_edgeOrientations = reorderer.edgeOrientations;
-			reorderer.Dispose ();
+			reorderer.Dispose();
 		}
 		
-		private List<Vector2> ClipToBounds (Rect bounds)
-		{
-			List<Vector2> points = new List<Vector2> ();
+		private List<Vector2> ClipToBounds(Rect bounds) {
+			List<Vector2> points = new List<Vector2>();
 			int n = _edges.Count;
 			int i = 0;
 			Edge edge;
@@ -218,123 +191,121 @@ namespace Delaunay
 			
 			if (i == n) {
 				// no edges visible
-				return new List<Vector2> ();
+				return new List<Vector2>();
 			}
-			edge = _edges [i];
-			Side orientation = _edgeOrientations [i];
+			edge = _edges[i];
+			Side orientation = _edgeOrientations[i];
 
-			if (edge.clippedEnds [orientation] == null) {
-				Debug.LogError ("XXX: Null detected when there should be a Vector2!");
+			if (edge.clippedEnds[orientation] == null) {
+				Debug.LogError("XXX: Null detected when there should be a Vector2!");
 			}
-			if (edge.clippedEnds [SideHelper.Other (orientation)] == null) {
-				Debug.LogError ("XXX: Null detected when there should be a Vector2!");
+			if (edge.clippedEnds[SideHelper.Other(orientation)] == null) {
+				Debug.LogError("XXX: Null detected when there should be a Vector2!");
 			}
-			points.Add ((Vector2)edge.clippedEnds [orientation]);
-			points.Add ((Vector2)edge.clippedEnds [SideHelper.Other (orientation)]);
+			points.Add((Vector2)edge.clippedEnds[orientation]);
+			points.Add((Vector2)edge.clippedEnds[SideHelper.Other(orientation)]);
 			
 			for (int j = i + 1; j < n; ++j) {
-				edge = _edges [j];
+				edge = _edges[j];
 				if (edge.visible == false) {
 					continue;
 				}
-				Connect (points, j, bounds);
+				Connect(points, j, bounds);
 			}
 			// close up the polygon by adding another corner point of the bounds if needed:
-			Connect (points, i, bounds, true);
+			Connect(points, i, bounds, true);
 			
 			return points;
 		}
 		
-		private void Connect (List<Vector2> points, int j, Rect bounds, bool closingUp = false)
-		{
-			Vector2 rightPoint = points [points.Count - 1];
-			Edge newEdge = _edges [j] as Edge;
-			Side newOrientation = _edgeOrientations [j];
+		private void Connect(List<Vector2> points, int j, Rect bounds, bool closingUp = false) {
+			Vector2 rightPoint = points[points.Count - 1];
+			Edge newEdge = _edges[j] as Edge;
+			Side newOrientation = _edgeOrientations[j];
 			// the point that  must be connected to rightPoint:
-			if (newEdge.clippedEnds [newOrientation] == null) {
-				Debug.LogError ("XXX: Null detected when there should be a Vector2!");
+			if (newEdge.clippedEnds[newOrientation] == null) {
+				Debug.LogError("XXX: Null detected when there should be a Vector2!");
 			}
-			Vector2 newPoint = (Vector2)newEdge.clippedEnds [newOrientation];
-			if (!CloseEnough (rightPoint, newPoint)) {
+			Vector2 newPoint = newEdge.clippedEnds[newOrientation].Value;
+			if (!CloseEnough(rightPoint, newPoint)) {
 				// The points do not coincide, so they must have been clipped at the bounds;
 				// see if they are on the same border of the bounds:
-				if (rightPoint.x != newPoint.x
-					&& rightPoint.y != newPoint.y) {
+				if (rightPoint.x != newPoint.x && rightPoint.y != newPoint.y) {
 					// They are on different borders of the bounds;
 					// insert one or two corners of bounds as needed to hook them up:
 					// (NOTE this will not be correct if the region should take up more than
 					// half of the bounds rect, for then we will have gone the wrong way
 					// around the bounds and included the smaller part rather than the larger)
-					int rightCheck = BoundsCheck.Check (rightPoint, bounds);
-					int newCheck = BoundsCheck.Check (newPoint, bounds);
+					int rightCheck = BoundsCheck.Check(rightPoint, bounds);
+					int newCheck = BoundsCheck.Check(newPoint, bounds);
 					float px, py;
 					if ((rightCheck & BoundsCheck.RIGHT) != 0) {
 						px = bounds.xMax;
 						if ((newCheck & BoundsCheck.BOTTOM) != 0) {
 							py = bounds.yMax;
-							points.Add (new Vector2 (px, py));
+							points.Add(new Vector2(px, py));
 						} else if ((newCheck & BoundsCheck.TOP) != 0) {
 							py = bounds.yMin;
-							points.Add (new Vector2 (px, py));
+							points.Add(new Vector2(px, py));
 						} else if ((newCheck & BoundsCheck.LEFT) != 0) {
 							if (rightPoint.y - bounds.y + newPoint.y - bounds.y < bounds.height) {
 								py = bounds.yMin;
 							} else {
 								py = bounds.yMax;
 							}
-							points.Add (new Vector2 (px, py));
-							points.Add (new Vector2 (bounds.xMin, py));
+							points.Add(new Vector2(px, py));
+							points.Add(new Vector2(bounds.xMin, py));
 						}
 					} else if ((rightCheck & BoundsCheck.LEFT) != 0) {
 						px = bounds.xMin;
 						if ((newCheck & BoundsCheck.BOTTOM) != 0) {
 							py = bounds.yMax;
-							points.Add (new Vector2 (px, py));
+							points.Add(new Vector2(px, py));
 						} else if ((newCheck & BoundsCheck.TOP) != 0) {
 							py = bounds.yMin;
-							points.Add (new Vector2 (px, py));
+							points.Add(new Vector2(px, py));
 						} else if ((newCheck & BoundsCheck.RIGHT) != 0) {
 							if (rightPoint.y - bounds.y + newPoint.y - bounds.y < bounds.height) {
 								py = bounds.yMin;
 							} else {
 								py = bounds.yMax;
 							}
-							points.Add (new Vector2 (px, py));
-							points.Add (new Vector2 (bounds.xMax, py));
+							points.Add(new Vector2(px, py));
+							points.Add(new Vector2(bounds.xMax, py));
 						}
 					} else if ((rightCheck & BoundsCheck.TOP) != 0) {
 						py = bounds.yMin;
 						if ((newCheck & BoundsCheck.RIGHT) != 0) {
 							px = bounds.xMax;
-							points.Add (new Vector2 (px, py));
+							points.Add(new Vector2(px, py));
 						} else if ((newCheck & BoundsCheck.LEFT) != 0) {
 							px = bounds.xMin;
-							points.Add (new Vector2 (px, py));
+							points.Add(new Vector2(px, py));
 						} else if ((newCheck & BoundsCheck.BOTTOM) != 0) {
 							if (rightPoint.x - bounds.x + newPoint.x - bounds.x < bounds.width) {
 								px = bounds.xMin;
 							} else {
 								px = bounds.xMax;
 							}
-							points.Add (new Vector2 (px, py));
-							points.Add (new Vector2 (px, bounds.yMax));
+							points.Add(new Vector2(px, py));
+							points.Add(new Vector2(px, bounds.yMax));
 						}
 					} else if ((rightCheck & BoundsCheck.BOTTOM) != 0) {
 						py = bounds.yMax;
 						if ((newCheck & BoundsCheck.RIGHT) != 0) {
 							px = bounds.xMax;
-							points.Add (new Vector2 (px, py));
+							points.Add(new Vector2(px, py));
 						} else if ((newCheck & BoundsCheck.LEFT) != 0) {
 							px = bounds.xMin;
-							points.Add (new Vector2 (px, py));
+							points.Add(new Vector2(px, py));
 						} else if ((newCheck & BoundsCheck.TOP) != 0) {
 							if (rightPoint.x - bounds.x + newPoint.x - bounds.x < bounds.width) {
 								px = bounds.xMin;
 							} else {
 								px = bounds.xMax;
 							}
-							points.Add (new Vector2 (px, py));
-							points.Add (new Vector2 (px, bounds.yMin));
+							points.Add(new Vector2(px, py));
+							points.Add(new Vector2(px, bounds.yMin));
 						}
 					}
 				}
@@ -342,29 +313,21 @@ namespace Delaunay
 					// newEdge's ends have already been added
 					return;
 				}
-				points.Add (newPoint);
+				points.Add(newPoint);
 			}
-			if (newEdge.clippedEnds [SideHelper.Other (newOrientation)] == null) {
-				Debug.LogError ("XXX: Null detected when there should be a Vector2!");
+			if (newEdge.clippedEnds[SideHelper.Other(newOrientation)] == null) {
+				Debug.LogError("XXX: Null detected when there should be a Vector2!");
 			}
-			Vector2 newRightPoint = (Vector2)newEdge.clippedEnds [SideHelper.Other (newOrientation)];
-			if (!CloseEnough (points [0], newRightPoint)) {
-				points.Add (newRightPoint);
+			Vector2 newRightPoint = newEdge.clippedEnds[SideHelper.Other(newOrientation)].Value;
+			if (!CloseEnough(points[0], newRightPoint)) {
+				points.Add(newRightPoint);
 			}
 		}
 								
-		public float x {
-			get { return _coord.x;}
-		}
-		internal float y {
-			get { return _coord.y;}
-		}
+		public float x => _coord.x;
+		internal float y => _coord.y;
 		
-		public float Dist (ICoord p)
-		{
-			return Vector2.Distance (p.Coord, this._coord);
-		}
-
+		public float Dist(ICoord p) => Vector2.Distance(p.Coord, this._coord);
 	}
 }
 
@@ -387,8 +350,7 @@ static class BoundsCheck
 		 * @return an int with the appropriate bits set if the Point lies on the corresponding bounds lines
 		 * 
 		 */
-	public static int Check (Vector2 point, Rect bounds)
-	{
+	public static int Check(Vector2 point, Rect bounds) {
 		int value = 0;
 		if (point.x == bounds.xMin) {
 			value |= LEFT;

@@ -81,7 +81,7 @@ public static class Vector2Extensions
         var polyY = points.Select(p => p.y).ToArray();
         var polyX = points.Select(p => p.x).ToArray();
         int[] nodeX = new int[MAX_POLY_CORNERS];
-        int nodes, pixelX, i, j, swap;
+        int nodes, i, j, swap;
 
         //  Loop through the rows of the image.
         for (int pixelY = IMAGE_TOP; pixelY <= IMAGE_BOT; pixelY++)

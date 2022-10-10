@@ -20,18 +20,20 @@ namespace Delaunay
 			_sorted = false;
 		}
 		
-		public void Dispose ()
+		/// <summary>제거하기 전 저장된 모든 Site 개체를 정리합니다.</summary>
+		public void Dispose()
 		{
 			if (_sites != null) {
 				for (int i = 0; i < _sites.Count; i++) {
 					Site site = _sites [i];
-					site.Dispose ();
+					site.Dispose();
 				}
-				_sites.Clear ();
+				_sites.Clear();
 				_sites = null;
 			}
 		}
 		
+		/// <summary>해당 Site를 추가하고 현재 Site 개수를 반환합니다.</summary>
 		public int Add (Site site)
 		{
 			_sorted = false;
@@ -39,12 +41,11 @@ namespace Delaunay
 			return _sites.Count;
 		}
 		
-		public int Count {
-			get { return _sites.Count;}
-		}
+		public int Count => _sites.Count;
 		
-		public Site Next ()
+		public Site Next()
 		{
+			//! 정렬된 상태에서 호출해야 합니다.
 			if (_sorted == false) {
 				UnityEngine.Debug.LogError ("SiteList::next():  sites have not been sorted");
 			}
@@ -55,10 +56,10 @@ namespace Delaunay
 			}
 		}
 
-		internal Rect GetSitesBounds ()
+		internal Rect GetSitesBounds()
 		{
 			if (_sorted == false) {
-				Site.SortSites (_sites);
+				_sites.Sort();
 				_currentIndex = 0;
 				_sorted = true;
 			}
