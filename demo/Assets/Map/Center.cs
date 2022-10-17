@@ -54,7 +54,7 @@ namespace Assets.Map
                 || polyY[j] < y && polyY[i] >= y)
                 && (polyX[i] <= x || polyX[j] <= x))
                 {
-                    oddNodes ^= (polyX[i] + (y - polyY[i]) / (polyY[j] - polyY[i]) * (polyX[j] - polyX[i]) < x);
+                    oddNodes ^= polyX[i] + (y - polyY[i]) / (polyY[j] - polyY[i]) * (polyX[j] - polyX[i]) < x;
                 }
                 j = i;
             }
