@@ -72,16 +72,14 @@ namespace Assets.Map
 
       progress.currentProgressCount.y = map.Graph.main.centers.Count;
       int count = 0;
+      progress.state = Progress.State.FillingPolygons;
       foreach (var c in map.Graph.main.centers) {
         Texture.FillPolygon(c.corners.Select(p => new Vector2(p.point.x * _tSc, p.point.y * _tSc)).ToArray(), BiomeProperties.Colors[c.biome]);
         var h = c.corners.Average(p => p.elevation);
-        HeightMap.FillPolygon(c.corners.Select(p => new Vector2(p.point.x * _tSc, p.point.y * _tSc)).ToArray(), new(h, h, h, 1));
+        HeightMap.FillPolygon(c.corners.Select(p => new Vector2(p.point.x * _tSc, p.point.y * _tSc)).ToArray(), c.corners.Select(p => p.elevation).ToArray());
 
         progress.currentProgressCount.x = ++count;
-        if (Elapsed) {
-          progress.state = Progress.State.FillingPolygons;
-          yield return null;
-        }
+        if (Elapsed) yield return null;
       }
       
       /*
@@ -94,12 +92,10 @@ namespace Assets.Map
         }
       }*/
       
+      progress.state = Progress.State.DrawingRivers;
       foreach (var line in map.Graph.main.edges.Where(p => p.river > 0 && !p.d0.water && !p.d1.water)) {
         DrawLine(Texture, line.v0.point.x, line.v0.point.y, line.v1.point.x, line.v1.point.y, Color.blue);
-        if (Elapsed) {
-          progress.state = Progress.State.DrawingRivers;
-          yield return null;
-        }
+        if (Elapsed) yield return null;
       }
       progress.state = Progress.State.Applying;
       yield return null;

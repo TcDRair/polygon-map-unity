@@ -60,75 +60,77 @@ public static class Vector2Extensions
     }
   }
 
-  public struct Point
-  {
-    public short x;
-    public short y;
-    public Point(short aX, short aY) { x = aX; y = aY; }
-    public Point(int aX, int aY) : this((short)aX, (short)aY) { }
-  }
+  //? IsInsidePolygon : https://bowbowbow.tistory.com/m/24
 
-  public static void FillPolygon(this Texture2D texture, Vector2[] points, Color color)
-  {
+  static void FillPolygonWithFunc(this Texture2D texture, Vector2[] points, System.Func<int, int, Color> func) {
     // http://alienryderflex.com/polygon_fill/
 
-    var IMAGE_BOT = (int)points.Max(p => p.y);
-    var IMAGE_TOP = (int)points.Min(p => p.y);
-    var IMAGE_LEFT = (int)points.Min(p => p.x);
-    var IMAGE_RIGHT = (int)points.Max(p => p.x);
-    var MAX_POLY_CORNERS = points.Count();
-    var polyCorners = MAX_POLY_CORNERS;
-    var polyY = points.Select(p => p.y).ToArray();
-    var polyX = points.Select(p => p.x).ToArray();
-    int[] nodeX = new int[MAX_POLY_CORNERS];
+    int xMin = (int)points.Min(p => p.x),
+      yMin = (int)points.Min(p => p.y),
+      xMax = (int)points.Max(p => p.x),
+      yMax = (int)points.Max(p => p.y)
+    ;
+    var corners = points.Count();
+    float[] polyX = points.Select(p => p.x).ToArray(), polyY = points.Select(p => p.y).ToArray();
+
+    var nodeX = new int[corners];
     int nodes, i, j, swap;
 
     //  Loop through the rows of the image.
-    for (int pixelY = IMAGE_TOP; pixelY <= IMAGE_BOT; pixelY++)
-    {
-
-      //  Build a list of nodes.
+    for (int y = yMin; y <= yMax; y++) {
       nodes = 0;
-      j = polyCorners - 1;
-      for (i = 0; i < polyCorners; i++)
-      {
-        if (polyY[i] < pixelY && polyY[j] >= pixelY || polyY[j] < pixelY && polyY[i] >= pixelY)
-        {
-          nodeX[nodes++] = (int)(polyX[i] + (pixelY - polyY[i]) / (polyY[j] - polyY[i]) * (polyX[j] - polyX[i]));
+      j = corners - 1;
+      //  Build a list of nodes.
+      for (i = 0; i < corners; i++) {
+        if (polyY[i] < y && polyY[j] >= y || polyY[j] < y && polyY[i] >= y) {
+          nodeX[nodes++] = (int)(polyX[i] + (y - polyY[i]) / (polyY[j] - polyY[i]) * (polyX[j] - polyX[i]));
         }
         j = i;
       }
 
       //  Sort the nodes, via a simple “Bubble” sort.
       i = 0;
-      while (i < nodes - 1)
-      {
-        if (nodeX[i] > nodeX[i + 1])
-        {
-          swap = nodeX[i]; nodeX[i] = nodeX[i + 1]; nodeX[i + 1] = swap; if (i != 0) i--;
+      while (i < nodes - 1) {
+        if (nodeX[i] > nodeX[i + 1]) {
+          swap = nodeX[i];
+          nodeX[i] = nodeX[i + 1];
+          nodeX[i + 1] = swap;
+          if (i > 0) i--;
         }
-        else
-        {
-          i++;
-        }
+        else i++;
       }
 
       //  Fill the pixels between node pairs.
-      for (i = 0; i < nodes; i += 2)
-      {
-        if (nodeX[i] >= IMAGE_RIGHT) 
-          break;
-        if (nodeX[i + 1] > IMAGE_LEFT)
-        {
-          if (nodeX[i] < IMAGE_LEFT) 
-            nodeX[i] = IMAGE_LEFT;
-          if (nodeX[i + 1] > IMAGE_RIGHT) 
-            nodeX[i + 1] = IMAGE_RIGHT;
-          for (j = nodeX[i]; j < nodeX[i + 1]; j++)
-            texture.SetPixel(j, pixelY, color);
+      for (i = 0; i < nodes; i += 2) {
+        if (nodeX[i] < xMax && nodeX[i + 1] > xMin) {
+          if (nodeX[i] < xMin) nodeX[i] = xMin;
+          if (nodeX[i + 1] > xMax) nodeX[i + 1] = xMax;
+          for (j = nodeX[i]; j < nodeX[i + 1]; j++) texture.SetPixel(j, y, func(j, y));
         }
       }
     }
+  }
+
+  public static void FillPolygon(this Texture2D texture, Vector2[] points, Color color) {
+    texture.FillPolygonWithFunc(points, (x, y) => color);
+  }
+
+  static bool e = true;
+  public static void FillPolygon(this Texture2D texture, Vector2[] points, float[] elevations) {
+    texture.FillPolygonWithFunc(
+      points,
+      (x, y) => {
+        float[] distances = points.Select(p => Vector2.Distance(p, new Vector2(x, y))).ToArray();
+        float sum = distances.Sum();
+        float[] weights = distances.Select(d => sum - d).ToArray();
+        float weightSum = weights.Sum();
+        float elv = weights.Select((w, i) => w / weightSum * elevations[i]).Sum();
+        //TODO 1 : make it simple
+        //TODO 2 : check if corners are redistributed by center elevation
+        if (e && elevations.Min() + 3 < elevations.Max()) { Debug.Log($"elv : {elv}, ({string.Join(',', elevations)})"); e = false; }
+        return new Color(elv, elv, elv);
+      }
+    );
   }
 }
 

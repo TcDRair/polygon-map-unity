@@ -34,7 +34,7 @@ namespace Assets.Map
 
     //* 그래프의 크기는 마스크 맵과 일반 맵 모두 동일해야 합니다.
     readonly int _size;
-    readonly bool hasMaskMap;
+    readonly bool hasMaskMap; //? 현재 사용하지 않음
     
     //* 일정 크기 이상에서 마스크 맵을 지정하는 것이 좋습니다.
     public Graph(Vector2[] points, Voronoi voronoi, Size size) {
@@ -142,46 +142,25 @@ namespace Assets.Map
 
       progress.state = Progress.State.FinishingGraphGenerating;
     }
-    /*/// <summary>런타임에 그래프를 그립니다.</summary>
+    /// <summary>런타임에 그래프를 그립니다.</summary>
     public IEnumerator InitGraph(float lakeThreshold, float landRatio, int riverCount, MonoBehaviour mono) {
-      //TODO 소요 시간 감축
       yield return mono.StartCoroutine(BuildGraph(main));
-      if (mask != null) {
-        yield return mono.StartCoroutine(BuildGraph(mask));
-        yield return mono.StartCoroutine(AssignCornerElevations(main, width, height, landRatio, mask));
-      }
-      else yield return mono.StartCoroutine(AssignCornerElevations(main, width, height, landRatio));
+      yield return mono.StartCoroutine(AssignCornerElevations(main, landRatio));
       yield return mono.StartCoroutine(AssignOceanCoastAndLand(lakeThreshold));
       yield return mono.StartCoroutine(RedistributeElevations());
-
       yield return mono.StartCoroutine(AssignPolygonElevations());
-
-      // Determine downslope paths.
       yield return mono.StartCoroutine(CalculateDownslopes());
-
-      // Determine watersheds: for every corner, where does it flow
-      // out into the ocean? 
       yield return mono.StartCoroutine(CalculateWatersheds());
-
-      // Create rivers.
       yield return mono.StartCoroutine(CreateRivers(riverCount));
-      // Determine moisture at corners, starting at rivers
-      // and lakes, but not oceans. Then redistribute
-      // moisture to cover the entire range evenly from 0.0
-      // to 1.0. Then assign polygon moisture as the average
-      // of the corner moisture.
       yield return mono.StartCoroutine(AssignCornerMoisture());
-      // RedistributeMoisture();
       yield return mono.StartCoroutine(AssignPolygonMoisture());
-
       progress.state = Progress.State.SettingBiomes;
       foreach (var c in main.centers) {
         c.biome = GetBiome(c);
-        if (elapsed) yield return null;
+        if (Elapsed) yield return null;
       }
-
       progress.state = Progress.State.FinishingGraphGenerating;
-    }*/
+    }
 
 
     #region Graph Building
@@ -294,8 +273,7 @@ namespace Assets.Map
         progress.currentProgressCount.x = ++count;
         if (Elapsed) yield return null;
       }
-      // GC
-      variables.cornerMap = null;
+      // variables.cornerMap = null; //? Needed for terrain mapping, etc...
 
       // TODO: use edges to determine these
       var topLeft = variables.centers.OrderBy(p => p.point.x + p.point.y).First();
@@ -332,14 +310,9 @@ namespace Assets.Map
       // Corner object.
       
       int pX = (int)point.x; int pY = (int)point.y;
-      var keyList = new (int x, int y)[9] {
-        (pX - 1, pY - 1), (pX, pY - 1), (pX + 1, pY - 1),
-        (pX - 1, pY  ), (pX, pY  ), (pX + 1, pY  ),
-        (pX - 1, pY + 1), (pX, pY + 1), (pX + 1, pY + 1)
-      };
 
       Corner c = null;
-      foreach (var (x, y) in keyList) {
+      foreach (var (x, y) in NeighborKeys(pX, pY)) {
         if (cornerMap.TryGetValue(x, out var yMap)) {
           if (yMap.TryGetValue(y, out var cs)) {
             if (cs.Any(corner => Vector2.Distance((c = corner).point, point) < 1e-3f)) return c;
@@ -460,20 +433,19 @@ namespace Assets.Map
       */
       #endregion
 
-      while (queue.Any())
-      {
+      progress.state = Progress.State.AssigningCornerElevations;
+      while (queue.Any()) {
         //* 모든 Corner에 대해 다음의 작업을 수행합니다.
         var q = queue.Dequeue();
-        //* 인접 Corner에 대해서...
+        //* 높이가 아직 설정되지 않은 인접 Corner에 대해서...
         foreach (var s in q.adjacent) if (s.elevation > float.MaxValue) {
           float newElevation = q.elevation, rnd = Random.value;
-          // 둘 중 한 쪽이라도 물이면 높이 변동 없음
-          newElevation += (q.water || s.water) ? 0.01f * rnd : (_needMoreRandomness) ? 1 + rnd : 1 + 0.01f * rnd;
-          // 높이 최초 설정 시 작업 추가
+          // 현재 corner보다 높게 설정. water corner는 차이가 거의 없음
+          newElevation += (q.water && s.water) ? 0.01f : _needMoreRandomness ? 1 + rnd : 1 + 0.01f * rnd;
           s.elevation = newElevation;
+          // 해당 인접 corner에서도 동일 작업 수행
           queue.Enqueue(s);
         }
-        progress.state = Progress.State.AssigningCornerElevations;
         if (Elapsed) yield return null;
       }
     }
@@ -584,6 +556,8 @@ namespace Assets.Map
         if (Elapsed) yield return null;
       }
       //? 경계면의 Corner는 모두 -1의 고도를 갖게 됩니다.
+
+      //* 모든 Land Corner에 대해 인접한 모든 Corner의 고도를 평균하여 입력합니다.
     }
 
     private IEnumerator AssignPolygonElevations() {
@@ -732,6 +706,13 @@ namespace Assets.Map
     #endregion
 
     #region Simple Methods
+    /// <summary>해당 정수 좌표 인근의 9타일 좌표를 배열로 반환합니다.</summary>
+    private (int x, int y)[] NeighborKeys(int x, int y, int range = 1) {
+      var keys = new List<(int, int)>();
+      for (int n = -range; n <= range; n++) for (int m = -range; m <= range; m++) keys.Add((x + n, y + m));
+      return keys.ToArray();
+    }
+
     /// <summary>두 폴리곤에 모두 포함된 Edge를 찾습니다. 찾지 못하면 null을 반환합니다.</summary>
     private Edge FindIntersectionEdge(Center p, Center r) {
       foreach (var edge in p.borders) if (edge.d0 == r || edge.d1 == r) return edge;
@@ -757,16 +738,30 @@ namespace Assets.Map
         (> .8f,      _) => Biome.Scorched,
         (> .6f, > .66f) => Biome.Taiga,
         (> .6f, > .33f) => Biome.Shrubland,
-        (> .6f,      _) => Biome.TemperateDesert,
-        (> .3f, > .83f) => Biome.TemperateRainForest,
-        (> .3f, > .50f) => Biome.TemperateDeciduousForest,
+        (> .6f,      _) => Biome.TemperatD,
+        (> .3f, > .83f) => Biome.TempRainF,
+        (> .3f, > .50f) => Biome.TempDeciF,
         (> .3f, > .16f) => Biome.Grassland,
-        (> .3f,      _) => Biome.TemperateDesert,
-        (    _, > .66f) => Biome.TropicalRainForest,
-        (    _, > .33f) => Biome.TropicalSeasonalForest,
+        (> .3f,      _) => Biome.TemperatD,
+        (    _, > .66f) => Biome.TropRainF,
+        (    _, > .33f) => Biome.TropSeasF,
         (    _, > .16f) => Biome.Grassland,
-        (    _,      _) => Biome.SubtropicalDesert,
+        (    _,      _) => Biome.SubTropiD,
       };
+    }
+
+    /// <summary>해당 점에서 가장 가까운 중심점을 가진 <see cref="Center"/>를 반환합니다.</summary>
+    public Center GetNearestCenter(Vector2 point) {
+      int pX = (int)point.x, pY = (int)point.y, range = 1;
+      List<Center> centers = new();
+      //? point 기준으로 반경을 넓혀가면서 Corner를 찾습니다. 한 개라도 발견되면 탐색을 멈춥니다.
+      do {
+        foreach (var (x, y) in NeighborKeys(pX, pY, range)) {
+          if (main.cornerMap.TryGetValue(x, out var d1) && d1.TryGetValue(y, out var c)) centers.AddRange(c.SelectMany(q => q.touches));
+        }
+        range++;
+      } while (centers.Count == 0);
+      return centers.OrderBy(c => Vector2.Distance(c.point, point)).First();
     }
 
     /// <summary>주어진 점 집합의 Voronoi Diagram 연산 결과를 반환합니다. 반복 수행 시 점이 보다 균일하게 배열됩니다.</summary>
