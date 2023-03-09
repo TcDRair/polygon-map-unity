@@ -31,7 +31,7 @@ public class Main : MonoBehaviour
 
 	void Awake ()
 	{
-        IslandShape.PERLIN_CHECK_VALUE = PerlinCheckValue;
+        IslandShape.MIDPOINT_VALUE = PerlinCheckValue;
 
         _selector = GameObject.Find("Selector");
 

@@ -62,14 +62,31 @@ public static class Vector2Extensions
 
   //? IsInsidePolygon : https://bowbowbow.tistory.com/m/24
 
-  static void FillPolygonWithFunc(this Texture2D texture, Vector2[] points, System.Func<int, int, Color> func) {
+  //! Suppose those points are sorted clockwise(or counter-).
+  static void FillPolygonWithFunc(this Texture2D texture, IEnumerable<Vector2> points, System.Func<int, int, Color> func) {
     // http://alienryderflex.com/polygon_fill/
 
     int xMin = (int)points.Min(p => p.x),
       yMin = (int)points.Min(p => p.y),
       xMax = (int)points.Max(p => p.x),
-      yMax = (int)points.Max(p => p.y)
-    ;
+      yMax = (int)points.Max(p => p.y);
+
+    /*RectInt area = new(xMin, yMin, xMax - xMin + 1, yMax - yMin + 1);
+    var pos = points.ToArray();
+    var lines = pos.Select((p, i) => (p, pos[(i+1)%pos.Length]));
+
+    List<Vector2Int> inside = new();
+    foreach (var p in area.allPositionsWithin) {
+      int crosses = 0;
+      foreach (var (p1, p2) in lines) {
+        if ((p1.y - p.y) * (p2.y - p.y) > 0) continue;
+        var x = (p.y - p2.y) * (p2.x - p1.x) / (p2.y - p1.y) + p2.x;
+        if (x >= p.x) crosses++;
+      }
+      if (crosses%2 > 0) inside.Add(p);
+    }
+    inside.ForEach(v => texture.SetPixel(v.x, v.y, func(v.x, v.y)));*/
+
     var corners = points.Count();
     float[] polyX = points.Select(p => p.x).ToArray(), polyY = points.Select(p => p.y).ToArray();
 
@@ -111,23 +128,19 @@ public static class Vector2Extensions
     }
   }
 
-  public static void FillPolygon(this Texture2D texture, Vector2[] points, Color color) {
-    texture.FillPolygonWithFunc(points, (x, y) => color);
-  }
+  public static void FillPolygon(this Texture2D texture, IEnumerable<Vector2> points, Color color) => texture.FillPolygonWithFunc(points, (x, y) => color);
 
-  static bool e = true;
-  public static void FillPolygon(this Texture2D texture, Vector2[] points, float[] elevations) {
+  public static void FillPolygon(this Texture2D texture, IEnumerable<Vector2> points, float[] elevations) {
     texture.FillPolygonWithFunc(
       points,
       (x, y) => {
-        float[] distances = points.Select(p => Vector2.Distance(p, new Vector2(x, y))).ToArray();
+        var distances = points.Select(p => Vector2.Distance(p, new Vector2(x, y)));
         float sum = distances.Sum();
-        float[] weights = distances.Select(d => sum - d).ToArray();
+        var weights = distances.Select(d => sum - d);
         float weightSum = weights.Sum();
         float elv = weights.Select((w, i) => w / weightSum * elevations[i]).Sum();
         //TODO 1 : make it simple
         //TODO 2 : check if corners are redistributed by center elevation
-        if (e && elevations.Min() + 3 < elevations.Max()) { Debug.Log($"elv : {elv}, ({string.Join(',', elevations)})"); e = false; }
         return new Color(elv, elv, elv);
       }
     );

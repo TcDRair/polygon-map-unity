@@ -1,157 +1,113 @@
 using UnityEngine;
-using Delaunay.Utils;
 
 namespace Delaunay
 {
-	
-	internal sealed class EdgeList: Utils.IDisposable
-	{
-		private float _deltax;
-		private float _xmin;
-		
-		private int _hashsize;
-		private Halfedge[] _hash;
-		private Halfedge _leftEnd;
-		public Halfedge leftEnd {
-			get { return _leftEnd;}
-		}
-		private Halfedge _rightEnd;
-		public Halfedge rightEnd {
-			get { return _rightEnd;}
-		}
-		
-		public void Dispose ()
-		{
-			Halfedge halfEdge = _leftEnd;
-			Halfedge prevHe;
-			while (halfEdge != _rightEnd) {
-				prevHe = halfEdge;
-				halfEdge = halfEdge.edgeListRightNeighbor;
-				prevHe.Dispose ();
-			}
-			_leftEnd = null;
-			_rightEnd.Dispose ();
-			_rightEnd = null;
+  internal sealed class EdgeList: Utils.IDisposable
+  {
+    private readonly float _deltaX;
+    private readonly float _xMin;
+    
+    private readonly int _hashSize;
+    private Halfedge[] _hash;
+    public Halfedge LeftEnd { get; private set; }
+    public Halfedge RightEnd { get; private set; }
+    
+    public void Dispose() {
+      Halfedge prevHe;
+      while (LeftEnd != RightEnd) {
+        prevHe = LeftEnd;
+        LeftEnd = LeftEnd.rightEdge;
+        prevHe.Dispose();
+      }
+      LeftEnd = null;
+      RightEnd.Dispose();
+      RightEnd = null;
 
-			int i;
-			for (i = 0; i < _hashsize; ++i) {
-				_hash [i] = null;
-			}
-			_hash = null;
-		}
-		
-		public EdgeList (float xmin, float deltax, int sqrt_nsites)
-		{
-			_xmin = xmin;
-			_deltax = deltax;
-			_hashsize = 2 * sqrt_nsites;
+      for (int i = 0; i < _hashSize; ++i) _hash[i] = null;
+      _hash = null;
+    }
+    
+    public EdgeList(float xMin, float deltaX, int sqrt_nsites) {
+      _xMin = xMin;
+      _deltaX = deltaX;
+      _hashSize = 2 * sqrt_nsites;
 
-			_hash = new Halfedge[_hashsize];
-			
-			// two dummy Halfedges:
-			_leftEnd = Halfedge.CreateDummy ();
-			_rightEnd = Halfedge.CreateDummy ();
-			_leftEnd.edgeListLeftNeighbor = null;
-			_leftEnd.edgeListRightNeighbor = _rightEnd;
-			_rightEnd.edgeListLeftNeighbor = _leftEnd;
-			_rightEnd.edgeListRightNeighbor = null;
-			_hash [0] = _leftEnd;
-			_hash [_hashsize - 1] = _rightEnd;
-		}
+      _hash = new Halfedge[_hashSize];
+      
+      // two dummy Halfedges:
+      LeftEnd = Halfedge.Dummy;
+      RightEnd = Halfedge.Dummy;
+      LeftEnd.leftEdge = null;
+      LeftEnd.rightEdge = RightEnd;
+      RightEnd.leftEdge = LeftEnd;
+      RightEnd.rightEdge = null;
+      _hash [0] = LeftEnd;
+      _hash [_hashSize - 1] = RightEnd;
+    }
+    public void Insert (Halfedge lb, Halfedge newEdge) {
+      newEdge.leftEdge = lb;
+      newEdge.rightEdge = lb.rightEdge;
+      lb.rightEdge.leftEdge = newEdge;
+      lb.rightEdge = newEdge;
+    }
 
-		/**
-		 * Insert newHalfedge to the right of lb 
-		 * @param lb
-		 * @param newHalfedge
-		 * 
-		 */
-		public void Insert (Halfedge lb, Halfedge newHalfedge)
-		{
-			newHalfedge.edgeListLeftNeighbor = lb;
-			newHalfedge.edgeListRightNeighbor = lb.edgeListRightNeighbor;
-			lb.edgeListRightNeighbor.edgeListLeftNeighbor = newHalfedge;
-			lb.edgeListRightNeighbor = newHalfedge;
-		}
+    /**
+     * This function only removes the Halfedge from the left-right list.
+     * We cannot dispose it yet because we are still using it. 
+     * @param halfEdge
+     * 
+     */
+    public void Remove (Halfedge halfEdge)
+    {
+      halfEdge.leftEdge.rightEdge = halfEdge.rightEdge;
+      halfEdge.rightEdge.leftEdge = halfEdge.leftEdge;
+      halfEdge.edge = Edge.DELETED;
+      halfEdge.leftEdge = halfEdge.rightEdge = null;
+    }
 
-		/**
-		 * This function only removes the Halfedge from the left-right list.
-		 * We cannot dispose it yet because we are still using it. 
-		 * @param halfEdge
-		 * 
-		 */
-		public void Remove (Halfedge halfEdge)
-		{
-			halfEdge.edgeListLeftNeighbor.edgeListRightNeighbor = halfEdge.edgeListRightNeighbor;
-			halfEdge.edgeListRightNeighbor.edgeListLeftNeighbor = halfEdge.edgeListLeftNeighbor;
-			halfEdge.edge = Edge.DELETED;
-			halfEdge.edgeListLeftNeighbor = halfEdge.edgeListRightNeighbor = null;
-		}
+    /**
+     * Find the rightmost Halfedge that is still left of p 
+     * @param p
+     * @return 
+     * 
+     */
+    public Halfedge EdgeListLeftNeighbor(Vector2 p)
+    {
+      int bucket;
+      Halfedge halfEdge;
+    
+      /* Use hash table to get close to desired halfedge */
+      bucket = Mathf.Clamp((int)((p.x - _xMin) / _deltaX * _hashSize), 0, _hashSize - 1);
+      halfEdge = GetHash(bucket);
 
-		/**
-		 * Find the rightmost Halfedge that is still left of p 
-		 * @param p
-		 * @return 
-		 * 
-		 */
-		public Halfedge EdgeListLeftNeighbor (Vector2 p)
-		{
-			int i, bucket;
-			Halfedge halfEdge;
-		
-			/* Use hash table to get close to desired halfedge */
-			bucket = (int)((p.x - _xmin) / _deltax * _hashsize);
-			if (bucket < 0) {
-				bucket = 0;
-			}
-			if (bucket >= _hashsize) {
-				bucket = _hashsize - 1;
-			}
-			halfEdge = GetHash (bucket);
-			if (halfEdge == null) {
-				for (i = 1; true; ++i) {
-					if ((halfEdge = GetHash (bucket - i)) != null)
-						break;
-					if ((halfEdge = GetHash (bucket + i)) != null)
-						break;
-				}
-			}
-			/* Now search linear list of halfedges for the correct one */
-			if (halfEdge == leftEnd || (halfEdge != rightEnd && halfEdge.IsLeftOf (p))) {
-				do {
-					halfEdge = halfEdge.edgeListRightNeighbor;
-				} while (halfEdge != rightEnd && halfEdge.IsLeftOf(p));
-				halfEdge = halfEdge.edgeListLeftNeighbor;
-			} else {
-				do {
-					halfEdge = halfEdge.edgeListLeftNeighbor;
-				} while (halfEdge != leftEnd && !halfEdge.IsLeftOf(p));
-			}
-		
-			/* Update hash table and reference counts */
-			if (bucket > 0 && bucket < _hashsize - 1) {
-				_hash [bucket] = halfEdge;
-			}
-			return halfEdge;
-		}
+      int range = 1;
+      while (halfEdge is null) halfEdge = GetHash(bucket - range) ?? GetHash(bucket + range++);
+      
+      /* Now search linear list of halfedges for the correct one */
+      if (halfEdge == LeftEnd || (halfEdge != RightEnd && halfEdge.IsLeftOf (p))) {
+        do {
+          halfEdge = halfEdge.rightEdge;
+        } while (halfEdge != RightEnd && halfEdge.IsLeftOf(p));
+        halfEdge = halfEdge.leftEdge;
+      } else {
+        do {
+          halfEdge = halfEdge.leftEdge;
+        } while (halfEdge != LeftEnd && !halfEdge.IsLeftOf(p));
+      }
+    
+      /* Update hash table and reference counts */
+      if (bucket > 0 && bucket < _hashSize - 1) {
+        _hash [bucket] = halfEdge;
+      }
+      return halfEdge;
+    }
 
-		/* Get entry from hash table, pruning any deleted nodes */
-		private Halfedge GetHash (int b)
-		{
-			Halfedge halfEdge;
-		
-			if (b < 0 || b >= _hashsize) {
-				return null;
-			}
-			halfEdge = _hash [b]; 
-			if (halfEdge != null && halfEdge.edge == Edge.DELETED) {
-				/* Hash table points to deleted halfedge.  Patch as necessary. */
-				_hash [b] = null;
-				// still can't dispose halfEdge yet!
-				return null;
-			} else {
-				return halfEdge;
-			}
-		}
+    /* Get entry from hash table, pruning any deleted nodes */
+    private Halfedge GetHash(int b) {
+      if (b < 0 || b >= _hashSize) return null;
 
-	}
+      if (_hash[b] is var h && h?.edge == Edge.DELETED) return _hash[b] = null;
+      return h;
+    }
+  }
 }

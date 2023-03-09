@@ -46,7 +46,8 @@ namespace Assets.Map
         NotStarted,
         GeneratingRandomPoints, RelaxingPoints, GeneratingVoronoiDiagram,
         Finished,
-      } public State state = State.NotStarted;
+      }
+      public State state = State.NotStarted;
       public bool HasStarted => state != State.NotStarted;
 
       public override string ToString() {
@@ -54,7 +55,8 @@ namespace Assets.Map
           return "[Map] " + state.ToString().ToNiceString() + " " + currentProgressCount.ToNiceString();
         else return "[Map] " + state.ToString().ToNiceString();
       }
-    } public Progress progress = new();
+    }
+    public Progress progress = new();
 
     /// <summary>노드, 점, 높이, 강물, 기후 등 섬의 정보를 담고 있는 지도를 생성합니다.</summary>
     public Map(Size size) {
@@ -96,19 +98,8 @@ namespace Assets.Map
       }
     }
 
-    //? Automatically generate biome map
-    public Biome[,] GetDataArray(int width, int height) {
-      //? Link Biome
-      var biomes = new Biome[width, height];
-      float sX = Width/width, sY = Height/height;
-      for (int x = 0; x < width; x++) for (int y = 0; y < height; y++) {
-        biomes[x, y] = Graph.GetNearestCenter(new Vector2(x * sX, y * sY)).biome;
-      }
-      return biomes;
-    }
-
     internal void Click(Vector2 point) {
-      SelectedCenter = Graph.main.centers.FirstOrDefault(p => p.PointInside(point.x, point.y));
+      SelectedCenter = Graph.vars.centers.FirstOrDefault(p => p.PointInside(point.x, point.y));
     }
   }
 }

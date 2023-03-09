@@ -39,7 +39,8 @@ namespace Assets.Map
           return "[Texture] " + state.ToString().ToNiceString() + " " + currentProgressCount.ToNiceString();
         else return "[Texture] " + state.ToString().ToNiceString();
       }
-    } public Progress progress = new();
+    }
+    public Progress progress = new();
     public void TimeLog() => Debug.Log(DateTime.Now.ToString("ss.fff"));
     float _prevTime;
     const float DELTA_TIME = 0.01f;
@@ -64,26 +65,26 @@ namespace Assets.Map
         wrapMode = TextureWrapMode.Clamp
       };
       HeightMap.SetPixels(Enumerable.Repeat(Color.clear, HeightMap.width * HeightMap.height).ToArray());
-      var lines = map.Graph.main.edges.Where(p => p.v0 != null).Select(p => new[] 
+      var lines = map.Graph.vars.edges.Where(p => p.v0 != null).Select(p => new[] 
       { 
         p.v0.point.x, p.v0.point.y,
         p.v1.point.x, p.v1.point.y
       }).ToArray();
 
-      progress.currentProgressCount.y = map.Graph.main.centers.Count;
+      progress.currentProgressCount.y = map.Graph.vars.centers.Count;
       int count = 0;
       progress.state = Progress.State.FillingPolygons;
-      foreach (var c in map.Graph.main.centers) {
-        Texture.FillPolygon(c.corners.Select(p => new Vector2(p.point.x * _tSc, p.point.y * _tSc)).ToArray(), BiomeProperties.Colors[c.biome]);
+      foreach (var c in map.Graph.vars.centers) {
+        Texture.FillPolygon(c.corners.Select(p => p.point * _tSc), BiomeProperties.Colors[c.biome]);
         var h = c.corners.Average(p => p.elevation);
-        HeightMap.FillPolygon(c.corners.Select(p => new Vector2(p.point.x * _tSc, p.point.y * _tSc)).ToArray(), c.corners.Select(p => p.elevation).ToArray());
+        HeightMap.FillPolygon(c.corners.Select(p => p.point * _tSc), c.corners.Select(p => p.elevation).ToArray());
 
         progress.currentProgressCount.x = ++count;
         if (Elapsed) yield return null;
       }
       
       /*
-      //? Some dirty lines are being drawning...
+      //? Some dirty lines are drawn...
       foreach (var line in lines) {
         DrawLine(texture, line[0], line[1], line[2], line[3], Color.black);
         if (Elapsed) {
@@ -93,7 +94,7 @@ namespace Assets.Map
       }*/
       
       progress.state = Progress.State.DrawingRivers;
-      foreach (var line in map.Graph.main.edges.Where(p => p.river > 0 && !p.d0.water && !p.d1.water)) {
+      foreach (var line in map.Graph.vars.edges.Where(p => p.river > 0 && !p.d0.water && !p.d1.water)) {
         DrawLine(Texture, line.v0.point.x, line.v0.point.y, line.v1.point.x, line.v1.point.y, Color.blue);
         if (Elapsed) yield return null;
       }
