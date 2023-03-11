@@ -7,7 +7,7 @@ using UnityEngine;
 
 using static Unity.EditorCoroutines.Editor.EditorCoroutineUtility;
 
-namespace Assets.Map
+namespace Assets.Maps
 {
   public class Graph
   {

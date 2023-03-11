@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text;
 using UnityEngine;
 
-namespace Assets.Map
+namespace Assets.Maps
 {
   public enum Size {
     s1 = 64,
@@ -24,7 +24,6 @@ namespace Assets.Map
     
     public Graph Graph { get; private set; }
     public Center SelectedCenter { get; private set; }
-
     
     public class Progress {
       /// <summary>Graph 작업의 전체적인 진행도를 나타냅니다.<br/>0에서 1 사이의 비율로 나타나며, 실제 시간과 일치하지 않을 수 있습니다.</summary>
@@ -75,7 +74,6 @@ namespace Assets.Map
       progress.state = Progress.State.GeneratingVoronoiDiagram;
       var voronoi = new Voronoi(points, colors, new Rect(0, 0, _size, _size));
       Graph = new Graph(points, voronoi, size);
-      
 
       progress.state = Progress.State.Finished;
     }

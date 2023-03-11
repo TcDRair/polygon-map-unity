@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace Assets.Map
+namespace Assets.Maps
 {
   public class Corner
   {

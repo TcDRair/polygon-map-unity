@@ -1,7 +1,7 @@
 ﻿using System.Collections.Generic;
 using UnityEngine;
 
-namespace Assets.Map {
+namespace Assets.Maps {
   public static class BiomeProperties {
     public static Dictionary<Biome, Color> Colors = new()
     {

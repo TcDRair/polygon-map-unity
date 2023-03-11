@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using Delaunay;
 using Delaunay.Geo;
 using System.Linq;
-using Assets.Map;
+using Assets.Maps;
 
 namespace PolygonMap {
 

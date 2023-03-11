@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using UnityEngine;
 
-namespace Assets.Map
+namespace Assets.Maps
 {
   public class Center
   {

@@ -5,7 +5,8 @@ using System.Linq;
 using System.Text;
 using UnityEngine;
 
-namespace Assets.Map
+using Rair.Field.Values;
+namespace Assets.Maps
 {
   public class MapTexture
   {
@@ -76,8 +77,8 @@ namespace Assets.Map
       progress.state = Progress.State.FillingPolygons;
       foreach (var c in map.Graph.vars.centers) {
         Texture.FillPolygon(c.corners.Select(p => p.point * _tSc), BiomeProperties.Colors[c.biome]);
-        var h = c.corners.Average(p => p.elevation);
-        HeightMap.FillPolygon(c.corners.Select(p => p.point * _tSc), c.corners.Select(p => p.elevation).ToArray());
+        var h = c.elevation;
+        HeightMap.FillPolygon(c.corners.Select(p => p.point * _tSc), new Color(h, h, h));
 
         progress.currentProgressCount.x = ++count;
         if (Elapsed) yield return null;
@@ -104,8 +105,7 @@ namespace Assets.Map
       progress.state = Progress.State.Finished;
     }
 
-    private void DrawLine(Texture2D texture, float x0, float y0, float x1, float y1, Color color)
-    {
+    private void DrawLine(Texture2D texture, float x0, float y0, float x1, float y1, Color color) {
       texture.DrawLine((int)(x0 * _tSc), (int)(y0 * _tSc), (int)(x1 * _tSc), (int)(y1 * _tSc), color);
     }
   }

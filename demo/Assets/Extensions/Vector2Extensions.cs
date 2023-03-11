@@ -129,6 +129,7 @@ public static class Vector2Extensions
   }
 
   public static void FillPolygon(this Texture2D texture, IEnumerable<Vector2> points, Color color) => texture.FillPolygonWithFunc(points, (x, y) => color);
+  public static void FillPolygon(this Texture2D texture, IEnumerable<Vector2> points, bool isLand) => texture.FillPolygonWithFunc(points, isLand ? ((_, _) => Color.white) : ((_, _) => Color.clear));
 
   public static void FillPolygon(this Texture2D texture, IEnumerable<Vector2> points, float[] elevations) {
     texture.FillPolygonWithFunc(

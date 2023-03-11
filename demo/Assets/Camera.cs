@@ -1,6 +1,6 @@
 ﻿using UnityEngine;
 using System.Collections;
-using Assets.Map;
+using Assets.Maps;
 
 namespace PolygonMap {
     
