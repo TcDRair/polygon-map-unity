@@ -14,8 +14,8 @@ public static class Vector2Extensions
 
   public static void DrawLine(this Texture2D tex, int x0, int y0, int x1, int y1, Color col)
   {
-    int dy = (int)(y1 - y0);
-    int dx = (int)(x1 - x0);
+    int dy = y1 - y0;
+    int dx = x1 - x0;
     int stepx, stepy;
 
     if (dy < 0) { dy = -dy; stepy = -1; }
@@ -25,7 +25,7 @@ public static class Vector2Extensions
     dy <<= 1;
     dx <<= 1;
 
-    float fraction = 0;
+    float fraction;
 
     tex.SetPixel(x0, y0, col);
     if (dx > dy)
@@ -61,7 +61,6 @@ public static class Vector2Extensions
   }
 
   //? IsInsidePolygon : https://bowbowbow.tistory.com/m/24
-
   //! Suppose those points are sorted clockwise(or counter-).
   static void FillPolygonWithFunc(this Texture2D texture, IEnumerable<Vector2> points, System.Func<int, int, Color> func) {
     // http://alienryderflex.com/polygon_fill/
@@ -131,21 +130,32 @@ public static class Vector2Extensions
   public static void FillPolygon(this Texture2D texture, IEnumerable<Vector2> points, Color color) => texture.FillPolygonWithFunc(points, (x, y) => color);
   public static void FillPolygon(this Texture2D texture, IEnumerable<Vector2> points, bool isLand) => texture.FillPolygonWithFunc(points, isLand ? ((_, _) => Color.white) : ((_, _) => Color.clear));
 
-  public static void FillPolygon(this Texture2D texture, IEnumerable<Vector2> points, float[] elevations) {
-    texture.FillPolygonWithFunc(
-      points,
+  public static void FillPolygon(this Texture2D texture, Assets.Maps.Center center, int scaler, bool gradient = false) {
+    if (gradient) {
+      var cs = center.corners;
+      texture.FillPolygonWithFunc(
+        cs.Select(c => c.point * scaler),
+        (x, y) => {
+          var weights = center.corners.Select(p => 1/Vector2.Distance(p.point * scaler, new Vector2(x, y)));
+          var normalizedWeights = weights.Select(w => w / weights.Sum());
+          float h = cs.Zip(normalizedWeights, (c, w) => c.elevation * w).Sum(),
+            m = cs.Zip(normalizedWeights, (c, w) => c.moisture * w).Sum(),
+            w = cs.Any(c => c.water) ? 0 : 1;
+          return new Color(h, m, w);
+        }
+      );
+    }
+    else texture.FillPolygonWithFunc(
+      center.corners.Select(c => c.point * scaler),
       (x, y) => {
-        var distances = points.Select(p => Vector2.Distance(p, new Vector2(x, y)));
-        float sum = distances.Sum();
-        var weights = distances.Select(d => sum - d);
-        float weightSum = weights.Sum();
-        float elv = weights.Select((w, i) => w / weightSum * elevations[i]).Sum();
-        //TODO 1 : make it simple
-        //TODO 2 : check if corners are redistributed by center elevation
-        return new Color(elv, elv, elv);
+        float h = center.elevation, m = center.moisture, w = center.water ? 0 : 1;
+        return new Color(h, m, w);
       }
     );
   }
 }
 
-
+public static class Vector3Extensions
+{
+  public static Vector2 XZ(this Vector3 v) => new(v.x, v.z);
+}

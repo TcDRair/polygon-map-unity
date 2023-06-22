@@ -7,9 +7,10 @@ using UnityEngine;
 
 using static Unity.EditorCoroutines.Editor.EditorCoroutineUtility;
 
+using Assets.Util;
 namespace Assets.Maps
 {
-  public class Graph
+  public class Graph : IProgressTimerProvider
   {
     public class Variables {
       public Variables(Vector2[] points, Voronoi voronoi) { this.points = points; this.voronoi = voronoi; }
@@ -25,119 +26,74 @@ namespace Assets.Maps
       public IEnumerable<Corner> WaterCorners => corners.Where(p => !p.Land);
     } public Variables vars;
 
-    //? mask, Gradient 등 별도의 Voronoi Diagram이 필요할 경우 대비
-
-    // List<KeyValuePair<int, Corner>> cornerMap = new List<KeyValuePair<int, Corner>>();
-    // System.Func<Vector2, (float, float)> insideWithValue; // For Debug
-    const bool _needMoreRandomness = true;
-
-    //* 그래프의 크기는 마스크 맵과 일반 맵 모두 동일해야 합니다.
     readonly int _size;
-    
-    //* 일정 크기 이상에서 마스크 맵을 지정하는 것이 좋습니다.
     public Graph(Vector2[] points, Voronoi voronoi, Size size) {
       _size = (int)size;
       vars = new Variables(points, voronoi);
     }
-
-    public class Progress {
-      /// <summary>Graph 작업의 전체적인 진행도를 나타냅니다.<br/>0에서 1 사이의 비율로 나타나며, 실제 시간과 일치하지 않을 수 있습니다.</summary>
-      public float TotalProgress => state switch {
-        State.NotStarted => 0,
-        State.BuildingGraphPoints => 0.1f,
-        State.BuildingGraphCenters => 0.2f,
-        State.BuildingGraphDelunayPoints => 0.2f + 0.5f * CurrentProgress,
-        State.BuildingGraphSortedCorners => 0.71f,
-        State.AssigningWaterLevel => 0.72f,
-        State.AssigningCornerElevations => 0.73f,
-        State.AssigningCenterBorders => 0.74f,
-        State.AssigningCenterOceans => 0.76f,
-        State.AssigningCenterCoasts => 0.78f,
-        State.AssigningCorners => 0.79f,
-        State.RedistributeLandCornerElevations => 0.80f,
-        State.RedistributeWaterCornerElevations => 0.81f,
-        State.AssignCenterElevations => 0.82f,
-        State.CalculatingDownslopes => 0.83f,
-        State.CalculatingWatersheds => 0.86f,
-        State.CalculatingRivers => 0.89f,
-        State.CalculatingFreshwaterMoisture => 0.93f,
-        State.CalculatingLandMoisture => 0.94f,
-        State.CalculatingCenterMoisture => 0.95f,
-        State.SettingBiomes => 0.96f,
-        State.FinishingGraphGenerating => 1,
-        _ => 1
-      };
-      //? 상기 비율은 몇 번의 테스트 이후 대략적인 시간적 비율을 나타내도록 합시다.
-        
-      
-      /// <summary>현재 진행중인 반복문의 진행도를 나타냅니다.<br/>0에서 1 사이의 비율로 나타나며, 많은 시간이 걸리는 반복문에만 적용됩니다.</summary>
-      public float CurrentProgress => (float)currentProgressCount.x/currentProgressCount.y;
-      /// <summary>현재 진행중인 반복문의 진행도를 나타냅니다.<br/>Vector2(n, m)으로 나타나며, 많은 시간이 걸리는 반복문에만 적용됩니다.</summary>
-      public Vector2Int currentProgressCount;
-      public enum State {
-        NotStarted,
-        BuildingGraphPoints, BuildingGraphCenters, BuildingGraphDelunayPoints, BuildingGraphSortedCorners,
-        AssigningWaterLevel, AssigningCornerElevations, AssigningCenterBorders, AssigningCenterOceans, AssigningCenterCoasts, AssigningCorners,
-        RedistributeLandCornerElevations, RedistributeWaterCornerElevations, AssignCenterElevations,
-        CalculatingDownslopes, CalculatingWatersheds, CalculatingRivers,
-        CalculatingFreshwaterMoisture, CalculatingLandMoisture, /*CalculateOceanMoisture,*/ CalculatingCenterMoisture,
-        SettingBiomes,
-        FinishingGraphGenerating,
-      } public State state = State.NotStarted;
-      public bool HasStarted => state != State.NotStarted;
-
-      public override string ToString() {
-        if (state == State.BuildingGraphDelunayPoints)
-          return "[Graph] " + state.ToString().ToNiceString() + " " + currentProgressCount.ToNiceString();
-        else return "[Graph] " + state.ToString().ToNiceString();
-      }
-    } public Progress progress = new();
-
-    float __prevTime;
-    const float DELTA_TIME = 0.05f;
-
-    //? Check if deltatime elapsed at called time, refresh if returns true.
-    bool Elapsed => (Time.realtimeSinceStartup - __prevTime > DELTA_TIME) && ((__prevTime = Time.realtimeSinceStartup) > 0);
+    
+    public ProgressTimer Timer { get; private set; } = new(
+      "Graph",
+      ("Building Graph Points"                 , .00f, false),
+      ("Building Graph Centers"                , .10f, false),
+      ("Building Graph Delunay Points"         , .20f,  true),
+      ("Building Graph Sorted Corners"         , .71f, false),
+      ("Assigning Water Level"                 , .72f, false),
+      ("Assigning Corner Elevations"           , .73f, false),
+      ("Assigning Center Borders"              , .74f, false),
+      ("Assigning Center Oceans"               , .76f, false),
+      ("Assigning Center Coasts"               , .78f, false),
+      ("Assigning Corners"                     , .79f, false),
+      ("Redistributing Land Corner Elevations" , .01f, false),
+      ("Redistributing Water Corner Elevations", .01f, false),
+      ("Assign Center Elevations"              , .01f, false),
+      ("Calculating Downslopes"                , .03f, false),
+      ("Calculating Watersheds"                , .03f, false),
+      ("Calculating Rivers"                    , .03f, false),
+      ("Calculating Freshwater Moisture"       , .01f, false),
+      ("Calculating Land Moisture"             , .01f, false),
+      ("Calculating Center Moisture"           , .01f, false),
+      ("Setting Biomes"                        , .01f, false),
+      ("Finishing Graph Generating"            , .01f, false)
+    );
 
     /// <summary>에디트 타임에 그래프를 그립니다.</summary>
     public IEnumerator InitGraph(float lakeThreshold, float landRatio, int riverCount) {
-      //TODO 소요 시간 감축
-      yield return StartCoroutineOwnerless(BuildGraph());
-      yield return StartCoroutineOwnerless(AssignCornerElevations(landRatio));
-      yield return StartCoroutineOwnerless(AssignOceanCoastAndLand(lakeThreshold));
-      yield return StartCoroutineOwnerless(RedistributeElevations());
-      yield return StartCoroutineOwnerless(AssignPolygonElevations());
-      yield return StartCoroutineOwnerless(CalculateDownslopes());
-      yield return StartCoroutineOwnerless(CalculateWatersheds());
-      yield return StartCoroutineOwnerless(CreateRivers(riverCount));
-      yield return StartCoroutineOwnerless(AssignCornerMoisture());
-      // RedistributeMoisture();
-      yield return StartCoroutineOwnerless(AssignPolygonMoisture());
-      progress.state = Progress.State.SettingBiomes;
+      yield return BuildGraph();
+      yield return AssignCornerElevations(landRatio);
+      yield return AssignOceanCoastAndLand(lakeThreshold);
+      yield return RedistributeElevations();
+      yield return AssignPolygonElevations();
+      yield return CalculateDownslopes();
+      yield return CalculateWatersheds();
+      yield return CreateRivers(riverCount);
+      yield return AssignCornerMoisture();
+      yield return AssignPolygonMoisture();
+      Timer.Next();
       foreach (var c in vars.centers) {
         c.biome = GetBiome(c);
-        if (Elapsed) yield return null;
+        if (Timer.Elapsed) yield return null;
       }
-      progress.state = Progress.State.FinishingGraphGenerating;
+      Timer.Next();
     }
     /// <summary>런타임에 그래프를 그립니다.</summary>
     public IEnumerator InitGraph(float lakeThreshold, float landRatio, int riverCount, MonoBehaviour mono) {
-      yield return mono.StartCoroutine(BuildGraph());
-      yield return mono.StartCoroutine(AssignCornerElevations(landRatio));
-      yield return mono.StartCoroutine(AssignOceanCoastAndLand(lakeThreshold));
-      yield return mono.StartCoroutine(RedistributeElevations());
-      yield return mono.StartCoroutine(AssignPolygonElevations());
-      yield return mono.StartCoroutine(CalculateDownslopes());
-      yield return mono.StartCoroutine(CalculateWatersheds());
-      yield return mono.StartCoroutine(CreateRivers(riverCount));
-      yield return mono.StartCoroutine(AssignCornerMoisture());
-      yield return mono.StartCoroutine(AssignPolygonMoisture());
-      progress.state = Progress.State.SettingBiomes;
+      if (mono == null) throw new ArgumentNullException($"유효한 호출 대상 아님({nameof(mono)})");
+      yield return BuildGraph();
+      yield return AssignCornerElevations(landRatio);
+      yield return AssignOceanCoastAndLand(lakeThreshold);
+      yield return RedistributeElevations();
+      yield return AssignPolygonElevations();
+      yield return CalculateDownslopes();
+      yield return CalculateWatersheds();
+      yield return CreateRivers(riverCount);
+      yield return AssignCornerMoisture();
+      yield return AssignPolygonMoisture();
       foreach (var c in vars.centers) {
         c.biome = GetBiome(c);
-        if (Elapsed) yield return null;
+        if (Timer.Elapsed) yield return null;
       }
-      progress.state = Progress.State.FinishingGraphGenerating;
+      Timer.Next();
     }
 
 
@@ -169,29 +125,26 @@ namespace Assets.Maps
 
       // Build Center objects for each of the points, and a lookup map
       // to find those Center objects again as we build the graph
-      progress.state = Progress.State.BuildingGraphPoints;
+      Timer.Next();
 
-      // vars.centerMap = new(new(0, 0, _size, _size));
-      // vars.cornerMap = new(new(0, 0, _size, _size));
       foreach (var point in vars.points) {
         var c = new Center { index = vars.centers.Count, point = point };
         vars.centers.Add(c);
         var pos = ((int)point.x, (int)point.y);
         if (vars.centerMap.TryGetValue(pos, out var list)) list.Add(c);
         else vars.centerMap.Add(pos, new() {c});
-        if (Elapsed) yield return null;
+        if (Timer.Elapsed) yield return null;
       }
 
       // Workaround for Voronoi lib bug: we need to call region()
       // before Edges or neighboringSites are available
-      progress.state = Progress.State.BuildingGraphCenters;
+      Timer.Next();
       foreach (var p in vars.centers) {
         vars.voronoi.Region(p.point);
-        if (Elapsed) yield return null;
+        if (Timer.Elapsed) yield return null;
       }
 
-      progress.state = Progress.State.BuildingGraphDelunayPoints;
-      progress.currentProgressCount.y = libedges.Count;
+      Timer.Next();
       int count = 0;
       foreach (var libedge in libedges) {
         //! Debug
@@ -248,9 +201,11 @@ namespace Assets.Maps
         }
         else Debug.Log("Not Visible?");
         #endregion
-
-        progress.currentProgressCount.x = ++count;
-        if (Elapsed) yield return null;
+        ++count;
+        if (Timer.Elapsed) {
+          Timer.SetDetail(count, libedges.Count);
+          yield return null;
+        }
       }
       // variables.cornerMap = null; //? Needed for terrain mapping, etc...
 
@@ -268,16 +223,16 @@ namespace Assets.Maps
       AddCorner(bottomLeft, _size, 0);
 
       // required for polygon fill
-      progress.state = Progress.State.BuildingGraphSortedCorners;
+      Timer.Next();
       foreach (var center in vars.centers) {
         center.corners.Sort(ClockwiseComparison(center));
-        if (Elapsed) yield return null;
+        if (Timer.Elapsed) yield return null;
       }
     }
 
     private static void AddCorner(Center topLeft, int x, int y) { if (topLeft.point != new Vector2(x, y)) topLeft.corners.Add(new() { ocean = true, point = new Vector2(x, y) }); }
 
-    private Comparison<Corner> ClockwiseComparison(Center center) => (a, b) => (int)(((a.point.x - center.point.x) * (b.point.y - center.point.y) - (b.point.x - center.point.x) * (a.point.y - center.point.y)) * 1000);
+    private Comparison<Corner> ClockwiseComparison(Center center) => (a, b) => (int)(((a.X - center.point.x) * (b.Y - center.point.y) - (b.X - center.point.x) * (a.Y - center.point.y)) * 1000);
 
     private Corner MakeCorner(Vector2 point) {
       //* Make and return corner, or just return same(very close to given point) corner      
@@ -324,36 +279,7 @@ namespace Assets.Maps
 
       //* 지정 높이 기준으로 각 Corner의 물 여부 결정, 원하는 육지 비율에 도달할 때까지 반복
       int _tries = 1;
-      progress.state = Progress.State.AssigningWaterLevel;
-      /*if (hasMaskMap) do {
-        //* Map이 고밀도일 경우 일정 개수의 Corner만 체크하여 저밀도 land 마스크를 생성합니다.
-        int water = 0, maskRatio = _size/(int)Size.s4;
-        Inside = IslandShape.MakePerlin(_size, _size, gap == 0f ? null : gap > 0f);
-
-        Queue<Corner> elevation = new();
-        var centersArray = this.vars.centers.ToArray();
-      
-        //*  실제 water 여부 결정
-        for (int i = 0; i < centersArray.Length; i += maskRatio) foreach (var c in centersArray[i].corners) {
-          c._marked = true;
-          elevation.Enqueue(c);
-          if (c.water = !Inside(c.point)) water++;
-          if (Elapsed) yield return null;
-        }
-        //* 모든 Corner를 마크합니다.
-        while (elevation.Any()) {
-          Corner c = elevation.Dequeue();
-          foreach (var n in c.adjacent) if (!n._marked) {
-            n._marked = true;
-            n.water = c.water;
-            elevation.Enqueue(n);
-          }
-          if (Elapsed) yield return null;
-        }
-
-        gap = 1 - ((float)water/vars.corners.Count) - goalRatio;
-        // Debug.Log("land ratio: " + (gap + goalRatio).ToString() + ", goal ratio: " + goalRatio + ", water Level :" + IslandShape.SEA_LEVEL);
-      } while (Mathf.Abs(gap) > 0.01f && _try++ < 10);*/
+      Timer.Next();
       IslandShape.ResetPerlin();
       var history = new List<float>();
       do {
@@ -365,7 +291,7 @@ namespace Assets.Maps
 
         if (Mathf.Abs(landRatio - result) < .01f) break;
         else IslandShape.SetPerlin(landRatio, result);
-        if (Elapsed) yield return null;
+        if (Timer.Elapsed) yield return null;
       } while (++_tries < 10);
       // Debug.Log($"land ratio: [{string.Join(',', history)} / {landRatio} -> {IslandShape.SeaLevel}]");
 
@@ -396,18 +322,18 @@ namespace Assets.Maps
       */
       #endregion
 
-      progress.state = Progress.State.AssigningCornerElevations;
+      Timer.Next();
       //* 1. (높이가 설정된) Corner q에서
       while (queue.TryDequeue(out var q)) {
         //* 2. 높이가 아직 설정되지 않은 인접 Corner s가 있으면
         foreach (var s in q.adjacent) if (s.elevation > float.MaxValue) {
           //* 3. 현재 corner보다 높게 설정 (water Corner는 미미하게)
           var rnd = UnityEngine.Random.value;
-          s.elevation = q.elevation + (q.water && s.water ? .01f : 1) * rnd; //// _needMoreRandomness
+          s.elevation = q.elevation + (q.water && s.water ? .01f : 1) * rnd;
           //* 4. 한 뒤 해당 Corner에서도 1~3 수행
           queue.Enqueue(s);
         }
-        if (Elapsed) yield return null;
+        if (Timer.Elapsed) yield return null;
       }
     }
 
@@ -435,14 +361,14 @@ namespace Assets.Maps
       //var p:Center, q:Corner, r:Center, numWater:int;
 
       //* 경계면 Center는 항상 'ocean' 속성이 부여됩니다.
-      progress.state = Progress.State.AssigningCenterBorders;
+      Timer.Next();
       foreach(var c in vars.centers) {
         if (c.corners.Any(q => q.border)) {
           c.border = true;
           c.ocean = true;
           c.corners.ForEach(q => q.water = true);
         }
-        if (Elapsed) yield return null;
+        if (Timer.Elapsed) yield return null;
       }
       
       //? 맵의 미적 요소 보강을 위해 경계면으로부터 3칸 이내의 Center는 모두 'ocean' 속성이 부여됩니다.
@@ -455,26 +381,26 @@ namespace Assets.Maps
       vars.centers.ForEach(p => { if (p.ocean || (float)p.corners.Count(c => c.water)/p.corners.Count() > lakeThreshold) p.water = true; });
 
       //* 경계면에 연결된 'water' 속성의 Center에 'ocean' 속성을 추가합니다.
-      progress.state = Progress.State.AssigningCenterOceans;
+      Timer.Next();
       while (vars.centers.Where(c => c.ocean).Count(o => o.neighbors.Count(r => {
         if (r.water && !r.ocean) { r.ocean = true; return true; }
         return false;
-      }) > 0) > 0) { if (Elapsed) yield return null; }
+      }) > 0) > 0) { if (Timer.Elapsed) yield return null; }
 
       //* 'land' 속성의 Center와 'ocean' 속성의 Center 둘 모두를 이웃으로 갖고 있는 폴리곤은 'coast' 속성을 가집니다.
-      progress.state = Progress.State.AssigningCenterCoasts;
+      Timer.Next();
       vars.centers.ForEach(p => p.coast = p.neighbors.Exists(r => r.ocean) && p.neighbors.Exists(r => !r.water));
-      if (Elapsed) yield return null;
+      if (Timer.Elapsed) yield return null;
 
       //* 마지막으로 Corner에 대해 모든 인접 폴리곤이 'ocean'이면 'ocean', 'land'면 'land', 다른 경우 'coast' 속성을 부여합니다.
-      progress.state = Progress.State.AssigningCorners;
+      Timer.Next();
       foreach (var q in vars.corners) {
         bool ocean = q.touches.Exists(p => p.ocean); // 인접 폴리곤에 ocean이 하나라도 있으면 true
         bool land = q.touches.Exists(p => !p.water); // 인접 폴리곤에 land가 하나라도 있으면 true
         q.ocean = ocean && !land; // ocean 인접이면서 land가 근처에 없으면 항상 ocean 판정.
         q.coast = ocean && land; // ocean 인접이면서 land가 근처에 있으면 coast 판정.
         q.water = !q.coast && !land; // land가 근처에 없으면서 coast가 아니면 water 판정.
-        if (Elapsed) yield return null;
+        if (Timer.Elapsed) yield return null;
       }
     }
 
@@ -495,28 +421,28 @@ namespace Assets.Maps
       */
       #endregion
 
-      const float SCALE_FACTOR = 1.2f; //고고도 영역을 증가시킵니다. 상위 20%의 고도 비율을 중심으로 이 값을 조정합니다.
+      // const float SCALE_FACTOR = 1.2f; //고고도 영역을 증가시킵니다. 상위 20%의 고도 비율을 중심으로 이 값을 조정합니다.
       const float referenceDepth = -1f; // 기준 깊이 값을 의미합니다. 기본값은 상대 고도 1f에 대응하는 -1f입니다.
       //* Ocean, Coast도 아닌 모든 Corner에 대해 다음의 작업을 수행합니다. 'lake' 여부와 무관합니다.
       var locations = vars.LandCorners.OrderBy(p => p.elevation).ToList();
       int count = locations.Count;
       
       //* 모든 Land Corner를 고도 오름차순으로 조정한 뒤 적절한 비율로 해발고도를 입력합니다.
-      progress.state = Progress.State.RedistributeLandCornerElevations;
+      Timer.Next();
       for (int p = 0; p < count; p++) { 
         // locations[p].elevation = 1 - Mathf.Pow(1 - (float)p/count, 0.5f * SCALE_FACTOR);
         locations[p].elevation = 1 - (float)p/count;
-        if (Elapsed) yield return null;
+        if (Timer.Elapsed) yield return null;
       }
 
       //* Land가 아닌 Corner의 고도를 조정합니다.
       //? 기존 코드에서는 0으로 초기화하였으나, 필요에 따라 점차 음의 고도를 갖게 조정합니다.
       float maxDepth = vars.WaterCorners.Max(x => x.elevation); // 가장 높은 고도를 의미하며, 변환 시 가장 작은 절댓값을 가집니다.
       float factor = referenceDepth / (maxDepth - vars.WaterCorners.Min(x => x.elevation));
-      progress.state = Progress.State.RedistributeWaterCornerElevations;
+      Timer.Next();
       foreach (var x in vars.WaterCorners) {
         x.elevation = (maxDepth - x.elevation) * factor;
-        if (Elapsed) yield return null;
+        if (Timer.Elapsed) yield return null;
       }
       
       //? 경계면의 Corner는 모두 -1의 고도를 갖게 됩니다.
@@ -525,20 +451,20 @@ namespace Assets.Maps
     }
 
     private IEnumerator AssignPolygonElevations() {
-      progress.state = Progress.State.AssignCenterElevations;
+      Timer.Next();
       foreach (var c in vars.centers) {
         c.elevation = c.corners.Average(x => x.elevation);
-        if (Elapsed) yield return null;
+        if (Timer.Elapsed) yield return null;
       }
     }
 
     private IEnumerator CalculateDownslopes() {
       //* 모든 Corner에 대해 가장 낮은 인접 Corner를 설정합니다. 없을 경우 자기 자신을 기본값으로 가집니다.
-      progress.state = Progress.State.CalculatingDownslopes;
+      Timer.Next();
       foreach (var c in vars.corners) {
         var lowest = c.adjacent.MinItem(c => c.elevation);
         c.downslope = (lowest.elevation < c.elevation) ? lowest : c;
-        if (Elapsed) yield return null;
+        if (Timer.Elapsed) yield return null;
       }
     }
 
@@ -559,15 +485,15 @@ namespace Assets.Maps
       #endregion
       //TODO?! 전체를 여러 번 순회하지 않고, 높이순으로 정렬한 다음에 한 번만 해도 되는 방법이 있지 않을까?
       //* 모든 Corner의 분수령을 계산하고 제거를 용이하게 하기 위해 LinkedList를 사용합니다.
-      progress.state = Progress.State.CalculatingWatersheds;
+      Timer.Next();
       foreach (var c in vars.LandCorners.OrderBy(c => c.elevation)) {
         c.watershed = c.downslope.watershed;
-        if (Elapsed) yield return null;
+        if (Timer.Elapsed) yield return null;
       }
       //? initial downslope & watershed is "this". so above line means when c is actual watershed corner: c.this = c.this.this;
       foreach (var c in vars.LandCorners) {
         c.watershed.watershed_size++;
-        if (Elapsed) yield return null;
+        if (Timer.Elapsed) yield return null;
       }
 
       /*
@@ -582,7 +508,7 @@ namespace Assets.Maps
           //? 다음의 조건에 따라 분류합니다: 대상 Corner가 지역 최저고도일 경우 
           if ((p == p.downslope) || history.Contains(p.watershed = p.watershed.downslope) || p.watershed.Land is false) lands.Remove(current);
           current = current.Next;
-          if (Elapsed) yield return null;
+          if (timer.Elapsed) yield return null;
         }
       } while(lands.Count > 0 && ++count < 50);
 
@@ -598,7 +524,7 @@ namespace Assets.Maps
        * Edge를 따라서 강을 생성합니다. 무작위 Corner를 선택하고, downslope를 따라 이동시킵니다.
        * 지나가는 모든 Edge와 Corner를 강으로 설정합니다.
       */
-      progress.state = Progress.State.CalculatingRivers;
+      Timer.Next();
       for (var i = 0; i < count; i++) {
         Corner q;
         //* 일정 고도 범위 내 육지 Corner를 선택합니다.
@@ -611,7 +537,7 @@ namespace Assets.Maps
           q.river++;
           q = q.downslope;
         }
-        if (Elapsed) yield return null;
+        if (Timer.Elapsed) yield return null;
       }
     }
 
@@ -633,14 +559,14 @@ namespace Assets.Maps
       var queue = new Queue<Corner>();
       
       //* 담수 습도 설정. (다른 Corner의 moisture는 0으로 초기화되어 있음)
-      progress.state = Progress.State.CalculatingFreshwaterMoisture;
+      Timer.Next();
       foreach (var corner in vars.corners.Where(p => (p.water || p.river > 0) && !p.ocean)) {
         corner.moisture = corner.river > 0 ? Mathf.Min(10, 0.75f*corner.river, 2) : 1.0f;
         queue.Enqueue(corner); // ↑ 15 이상의 river에서 습도가 최대치에 달함. //TODO 추후 습도 적정량으로 조절
-        if (Elapsed) yield return null;
+        if (Timer.Elapsed) yield return null;
       }
       //* 담수 근처 육지 습도 설정
-      progress.state = Progress.State.CalculatingLandMoisture;
+      Timer.Next();
       while (queue.Any()) {
         var q = queue.Dequeue();
         float adjacentMoisture = q.moisture * 0.9f;
@@ -649,7 +575,7 @@ namespace Assets.Maps
           r.moisture = adjacentMoisture;
           queue.Enqueue(r);
         }
-        if (Elapsed) yield return null;
+        if (Timer.Elapsed) yield return null;
       }
 
       //* 해수 습도 설정
@@ -658,10 +584,10 @@ namespace Assets.Maps
 
     private IEnumerator AssignPolygonMoisture() {
       //* 폴리곤의 습도는 Corner 습도의 평균입니다. (각 Corner는 최대 1의 가중치를 갖습니다.)
-      progress.state = Progress.State.CalculatingCenterMoisture;
+      Timer.Next();
       foreach (var c in vars.centers) {
         c.moisture = c.corners.Average(q => Mathf.Min(q.moisture, 1.0f));
-        if (Elapsed) yield return null;
+        if (Timer.Elapsed) yield return null;
       }
     }
 

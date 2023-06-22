@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace Assets.Maps
 {
-  public class Corner
+public class Corner
   {
   public int index;
 
@@ -17,6 +17,8 @@ namespace Assets.Maps
   public bool border;  // at the edge of the map
   public float elevation;  // 0.0-1.0
   public float moisture = 0;  // 0.0-1.0
+  public float X => point.x;
+  public float Y => point.y;
 
   public List<Center> touches = new();
   public List<Edge> protrudes = new();
@@ -43,5 +45,5 @@ namespace Assets.Maps
   public static bool operator !=(Corner a, Corner b) => a?.index != b?.index;
   public override bool Equals(object obj) => base.Equals(obj);
   public override int GetHashCode() => base.GetHashCode();
-  }
+}
 }
