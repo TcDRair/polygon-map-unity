@@ -37,6 +37,8 @@ namespace Assets.Maps {
       byte b = byte.Parse(hex[4.. ], hexStyle);
       return new Color32(r, g, b, 255);
     }
+
+    public static readonly int Length2Pow = 2 << (int)Mathf.Log(System.Enum.GetValues(typeof(Biome)).Length, 2);
   }
 
   public enum Biome {

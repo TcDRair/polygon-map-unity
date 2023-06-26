@@ -2,6 +2,8 @@
 using UnityEngine;
 using System.Linq;
 
+using Assets.Maps;
+
 public static class Vector2Extensions
 {
   public static Vector2 Interpolate(Vector2 pt1, Vector2 pt2, float f)
@@ -62,7 +64,7 @@ public static class Vector2Extensions
 
   //? IsInsidePolygon : https://bowbowbow.tistory.com/m/24
   //! Suppose those points are sorted clockwise(or counter-).
-  static void FillPolygonWithFunc(this Texture2D texture, IEnumerable<Vector2> points, System.Func<int, int, Color> func) {
+  static void FillPolygonWithFunc(this Texture2D texture, IEnumerable<Vector2> points, System.Func<int, int, Color32> func) {
     // http://alienryderflex.com/polygon_fill/
 
     int xMin = (int)points.Min(p => p.x),
@@ -130,7 +132,9 @@ public static class Vector2Extensions
   public static void FillPolygon(this Texture2D texture, IEnumerable<Vector2> points, Color color) => texture.FillPolygonWithFunc(points, (x, y) => color);
   public static void FillPolygon(this Texture2D texture, IEnumerable<Vector2> points, bool isLand) => texture.FillPolygonWithFunc(points, isLand ? ((_, _) => Color.white) : ((_, _) => Color.clear));
 
-  public static void FillPolygon(this Texture2D texture, Assets.Maps.Center center, int scaler, bool gradient = false) {
+  private static float BLen => BiomeProperties.Length2Pow;
+  /// <summary>해당 이미지에 <see cref="Center"/> 개체의 정보를 저장합니다. 각 채널에 높이, 습도, 점유, 바이옴 데이터를 저장합니다.</summary>
+  public static void FillPolygon(this Texture2D texture, Center center, int scaler, bool gradient = false) {
     if (gradient) {
       var cs = center.corners;
       texture.FillPolygonWithFunc(
@@ -140,22 +144,23 @@ public static class Vector2Extensions
           var normalizedWeights = weights.Select(w => w / weights.Sum());
           float h = cs.Zip(normalizedWeights, (c, w) => c.elevation * w).Sum(),
             m = cs.Zip(normalizedWeights, (c, w) => c.moisture * w).Sum(),
+            b = (int)center.biome/BLen, // maximum 17
             w = cs.Any(c => c.water) ? 0 : 1;
-          return new Color(h, m, w);
+          return new Color(h, m, b, w);
         }
       );
     }
     else texture.FillPolygonWithFunc(
       center.corners.Select(c => c.point * scaler),
       (x, y) => {
-        float h = center.elevation, m = center.moisture, w = center.water ? 0 : 1;
-        return new Color(h, m, w);
+        float h = center.elevation, m = center.moisture, w = center.water ? 0 : 1, b = ((int)center.biome)/BLen;
+        return new Color(h, m, b, w);
       }
     );
   }
 }
 
-public static class Vector3Extensions
-{
+public static class Vector3Extensions {
   public static Vector2 XZ(this Vector3 v) => new(v.x, v.z);
+  public static Vector3 XZToX0Z(this Vector2 v) => new(v.x, 0, v.y);
 }

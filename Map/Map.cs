@@ -36,11 +36,6 @@ namespace Assets.Maps
       this.size = (int)size;
       Width = this.size; Height = this.size;
     }
-    public void Reset() {
-      Timer.Reset();
-      Graph = null;
-      initialized = false;
-    }
     private bool initialized = false;
     public IEnumerator Initialize() {
       if (initialized) yield break;
