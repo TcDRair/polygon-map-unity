@@ -1,35 +1,32 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace Assets.Maps {
-  public static class BiomeProperties {
-    public static Dictionary<Biome, Color> Colors = new()
-    {
-      { Biome.Ocean, HexToColor("44447a") },
-      //{ COAST, HexToColor("33335a") },
-      //{ LAKESHORE, HexToColor("225588") },
-      { Biome.Lake, HexToColor("336699") },
-      //{ RIVER, HexToColor("225588") },
-      { Biome.Marsh, HexToColor("2f6666") },
-      { Biome.Ice, HexToColor("99ffff") },
-      { Biome.Beach, HexToColor("a09077") },
-      //{ BRIDGE, HexToColor("686860") },
-      //{ LAVA, HexToColor("cc3333") },
-      { Biome.Snow, HexToColor("ffffff") },
-      { Biome.Tundra, HexToColor("bbbbaa") },
-      { Biome.Bare, HexToColor("888888") },
-      { Biome.Scorched, HexToColor("555555") },
-      { Biome.Taiga, HexToColor("99aa77") },
-      { Biome.Shrubland, HexToColor("889977") },
-      { Biome.TemperatD, HexToColor("c9d29b") },
-      { Biome.TempRainF, HexToColor("448855") },
-      { Biome.TempDeciF, HexToColor("679459") },
-      { Biome.Grassland, HexToColor("88aa55") },
-      { Biome.SubTropiD, HexToColor("d2b98b") },
-      { Biome.TropRainF, HexToColor("337755") },
-      { Biome.TropSeasF, HexToColor("559944") }
-    };
+  [Serializable] public class Biome : SuperEnum<BiomeEnum> {
+    public Color Color => HexToColor(Value switch {
+      BiomeEnum.Ocean =>  "44447a",
+      BiomeEnum.Lake =>  "336699",
+      BiomeEnum.Marsh =>  "2f6666",
+      BiomeEnum.Ice =>  "99ffff",
+      BiomeEnum.Beach =>  "a09077",
+      BiomeEnum.Snow =>  "ffffff",
+      BiomeEnum.Tundra =>  "bbbbaa",
+      BiomeEnum.Bare =>  "888888",
+      BiomeEnum.Scorched =>  "555555",
+      BiomeEnum.Taiga =>  "99aa77",
+      BiomeEnum.Shrubland =>  "889977",
+      BiomeEnum.TemperateDesert =>  "c9d29b",
+      BiomeEnum.TemperateRainyForest =>  "448855",
+      BiomeEnum.TemperateDecidousForest =>  "679459",
+      BiomeEnum.Grassland =>  "88aa55",
+      BiomeEnum.SubtropicalDesert =>  "d2b98b",
+      BiomeEnum.TropicalRainyForest =>  "337755",
+      BiomeEnum.TropicalSeasonForest =>  "559944",
 
+      _ => "000000"
+    });
+    public static Color ToColor(BiomeEnum be) => ((Biome)be).Color;
     const System.Globalization.NumberStyles hexStyle = System.Globalization.NumberStyles.HexNumber;
     static Color HexToColor(string hex) {
       byte r = byte.Parse(hex[ ..2], hexStyle);
@@ -38,27 +35,53 @@ namespace Assets.Maps {
       return new Color32(r, g, b, 255);
     }
 
-    public static readonly int Length2Pow = 2 << (int)Mathf.Log(System.Enum.GetValues(typeof(Biome)).Length, 2);
+    public float Ratio => (int)Value / (float)Length2Pow;
+    #region Operators
+    public static implicit operator Biome(BiomeEnum E) => new() { Value = E };
+    public static explicit operator Biome(int value) => new() { Value = (BiomeEnum)value };
+    public static explicit operator Biome(float ratio) => (Biome)Mathf.RoundToInt(ratio * Length2Pow);
+    public static bool operator ==(Biome a, Biome b) => a.Value == b.Value;
+    public static bool operator !=(Biome a, Biome b) => a.Value != b.Value;
+    public override bool Equals(object other) => other is Biome b && Value == b.Value;
+    public override int GetHashCode() => Value.GetHashCode();
+    #endregion
   }
-
-  public enum Biome {
-    Ocean,
-    Marsh,
+  public enum BiomeEnum {
+    /// <summary>빙하</summary>
     Ice,
+    /// <summary>호수</summary>
     Lake,
-    Beach,
+    /// <summary>설원</summary>
     Snow,
-    Tundra,
+    /// <summary>맨땅</summary>
     Bare,
-    Scorched,
+    /// <summary>바다</summary>
+    Ocean,
+    /// <summary>습지 초원</summary>
+    Marsh,
+    /// <summary>해변</summary>
+    Beach,
+    /// <summary>타이가</summary>
     Taiga,
-    Shrubland,
-    TemperatD, // Temperate Desert
-    TempRainF, // Temperate Rain Forest
-    TempDeciF, // Temperate Decidous Forest
+    /// <summary>툰드라</summary>
+    Tundra,
+    /// <summary>초원</summary>
     Grassland,
-    TropRainF, // Tropical Rainy forest
-    TropSeasF,   // Tropical Season Forest
-    SubTropiD // Subtropical Desert
+    /// <summary>황무지</summary>
+    Scorched,
+    /// <summary>관목지</summary>
+    Shrubland,
+    /// <summary>온대 사막</summary>
+    TemperateDesert,
+    /// <summary>아열대 사막</summary>
+    SubtropicalDesert,
+    /// <summary>열대 우림</summary>
+    TropicalRainyForest,
+    /// <summary>온대 우림</summary>
+    TemperateRainyForest,
+    /// <summary>열대 계절림</summary>
+    TropicalSeasonForest,
+    /// <summary>온대 낙엽 활엽수림</summary>
+    TemperateDecidousForest,
   }
 }

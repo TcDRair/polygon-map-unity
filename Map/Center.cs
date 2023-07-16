@@ -14,7 +14,7 @@ public class Center
   public bool ocean;      // ocean
   public bool coast;      // land polygon touching an ocean
   public bool border;     // at the edge of the map
-  public Biome biome;     // biome type 
+  public BiomeEnum biome;     // biome type 
   public float elevation; // 0.0-1.0
   public float moisture;  // 0.0-1.0
   public List<Center> neighbors = new();

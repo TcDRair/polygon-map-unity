@@ -23,7 +23,7 @@ public class ProgressTimer {
   public void SetDetail(int x, int y) => detailStep = new(x, y);
   public void Reset() => Current = 0;
 
-  public float CurrentRatio { get {
+  public float CurrentRatio /*{ get {
     float r;
     try {r = detail[Current]
       ? ratio[Current] + (float)detailStep.x/detailStep.y * (ratio[Current+1] - ratio[Current])
@@ -32,11 +32,14 @@ public class ProgressTimer {
       Debug.Log($"[ProgressTimer] {name} {Current} {ratio?.Length} {detail?.Length}");
       throw;
     } return r;
-  }}
+  }}*/
+    => detail[Current]
+      ? ratio[Current] + (float)detailStep.x/detailStep.y * (ratio[Current+1] - ratio[Current])
+      : ratio[Current];
   public override string ToString()
     => detail[Current]
-      ? $"[{name}] {label[Current]}"
-      : $"[{name}] {label[Current]} ({detailStep.x}/{detailStep.y})";
+      ? $"[{name}] {label[Current]} ({detailStep.x}/{detailStep.y})"
+      : $"[{name}] {label[Current]}";
   
   private static float lastTick = 0;
   private const float TICK = .05f;

@@ -39,7 +39,7 @@ namespace Assets.Maps
 
       int total = map.Graph.vars.centers.Count, count = 0;
       foreach (var c in map.Graph.vars.centers) {
-        Map.FillPolygon(c.corners.Select(p => p.point * textureScale), BiomeProperties.Colors[c.biome]);
+        Map.FillPolygon(c.corners.Select(p => p.point * textureScale), Biome.ToColor(c.biome));
         MapData.FillPolygon(c, textureScale, false);
 
         ++count;

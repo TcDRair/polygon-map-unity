@@ -132,7 +132,6 @@ public static class Vector2Extensions
   public static void FillPolygon(this Texture2D texture, IEnumerable<Vector2> points, Color color) => texture.FillPolygonWithFunc(points, (x, y) => color);
   public static void FillPolygon(this Texture2D texture, IEnumerable<Vector2> points, bool isLand) => texture.FillPolygonWithFunc(points, isLand ? ((_, _) => Color.white) : ((_, _) => Color.clear));
 
-  private static float BLen => BiomeProperties.Length2Pow;
   /// <summary>해당 이미지에 <see cref="Center"/> 개체의 정보를 저장합니다. 각 채널에 높이, 습도, 점유, 바이옴 데이터를 저장합니다.</summary>
   public static void FillPolygon(this Texture2D texture, Center center, int scaler, bool gradient = false) {
     if (gradient) {
@@ -144,7 +143,7 @@ public static class Vector2Extensions
           var normalizedWeights = weights.Select(w => w / weights.Sum());
           float h = cs.Zip(normalizedWeights, (c, w) => c.elevation * w).Sum(),
             m = cs.Zip(normalizedWeights, (c, w) => c.moisture * w).Sum(),
-            b = (int)center.biome/BLen, // maximum 17
+            b = ((Biome)center.biome).Ratio,
             w = cs.Any(c => c.water) ? 0 : 1;
           return new Color(h, m, b, w);
         }
@@ -153,7 +152,7 @@ public static class Vector2Extensions
     else texture.FillPolygonWithFunc(
       center.corners.Select(c => c.point * scaler),
       (x, y) => {
-        float h = center.elevation, m = center.moisture, w = center.water ? 0 : 1, b = ((int)center.biome)/BLen;
+        float h = center.elevation, m = center.moisture, w = center.water ? 0 : 1, b = ((Biome)center.biome).Ratio;
         return new Color(h, m, b, w);
       }
     );

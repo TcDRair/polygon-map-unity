@@ -35,26 +35,26 @@ namespace Assets.Maps
     public ProgressTimer Timer { get; private set; } = new(
       "Graph",
       ("Building Graph Points"                 , .00f, false),
-      ("Building Graph Centers"                , .10f, false),
-      ("Building Graph Delunay Points"         , .20f,  true),
-      ("Building Graph Sorted Corners"         , .71f, false),
-      ("Assigning Water Level"                 , .72f, false),
-      ("Assigning Corner Elevations"           , .73f, false),
-      ("Assigning Center Borders"              , .74f, false),
-      ("Assigning Center Oceans"               , .76f, false),
-      ("Assigning Center Coasts"               , .78f, false),
-      ("Assigning Corners"                     , .79f, false),
-      ("Redistributing Land Corner Elevations" , .01f, false),
-      ("Redistributing Water Corner Elevations", .01f, false),
-      ("Assign Center Elevations"              , .01f, false),
-      ("Calculating Downslopes"                , .03f, false),
-      ("Calculating Watersheds"                , .03f, false),
-      ("Calculating Rivers"                    , .03f, false),
-      ("Calculating Freshwater Moisture"       , .01f, false),
-      ("Calculating Land Moisture"             , .01f, false),
-      ("Calculating Center Moisture"           , .01f, false),
-      ("Setting Biomes"                        , .01f, false),
-      ("Finishing Graph Generating"            , .01f, false)
+      ("Building Graph Centers"                , .02f, false),
+      ("Building Graph Delunay Points"         , .04f,  true),
+      ("Building Graph Sorted Corners"         , .64f,  true),
+      ("Assigning Water Level"                 , .66f, false),
+      ("Assigning Corner Elevations"           , .68f, false),
+      ("Assigning Center Borders"              , .70f, false),
+      ("Assigning Center Oceans"               , .72f, false),
+      ("Assigning Center Coasts"               , .74f, false),
+      ("Assigning Corners"                     , .76f, false),
+      ("Redistributing Land Corner Elevations" , .78f, false),
+      ("Redistributing Water Corner Elevations", .80f, false),
+      ("Assign Center Elevations"              , .82f, false),
+      ("Calculating Downslopes"                , .84f, false),
+      ("Calculating Watersheds"                , .86f, false),
+      ("Calculating Rivers"                    , .88f, false),
+      ("Calculating Freshwater Moisture"       , .90f, false),
+      ("Calculating Land Moisture"             , .92f, false),
+      ("Calculating Center Moisture"           , .94f, false),
+      ("Setting Biomes"                        , .96f, false),
+      ("Finishing Graph Generating"            , .98f, false)
     );
 
     /// <summary>에디트 타임에 그래프를 그립니다.</summary>
@@ -125,14 +125,13 @@ namespace Assets.Maps
 
       // Build Center objects for each of the points, and a lookup map
       // to find those Center objects again as we build the graph
-      Timer.Next();
 
       foreach (var point in vars.points) {
         var c = new Center { index = vars.centers.Count, point = point };
         vars.centers.Add(c);
         var pos = ((int)point.x, (int)point.y);
         if (vars.centerMap.TryGetValue(pos, out var list)) list.Add(c);
-        else vars.centerMap.Add(pos, new() {c});
+        else vars.centerMap.Add(pos, new() { c });
         if (Timer.Elapsed) yield return null;
       }
 
@@ -159,7 +158,7 @@ namespace Assets.Maps
           index = vars.edges.Count,
           river = 0,
 
-          // Edges point to corners. Edges point to centers. 
+          // Edges point to corners. Edges point to centers.
           v0 = libedge.Visible ? MakeCorner(vedge.p0) : null,
           v1 = libedge.Visible ? MakeCorner(vedge.p1) : null,
           d0 = GetCenter(dedge.p0),
@@ -624,33 +623,32 @@ namespace Assets.Maps
       return null;
     }
 
-    Biome GetBiome(Center p)
-    {
+    BiomeEnum GetBiome(Center p) {
       //TODO 비율 조정 기능 추가
-      if (p.ocean) return Biome.Ocean;
-      if (p.coast) return Biome.Beach;
+      if (p.ocean) return BiomeEnum.Ocean;
+      if (p.coast) return BiomeEnum.Beach;
       if (p.water) return p.elevation switch {
-        > .8f => Biome.Ice,
-        > .1f => Biome.Lake,
-        _ => Biome.Marsh
+        > .8f => BiomeEnum.Ice,
+        > .1f => BiomeEnum.Lake,
+        _ => BiomeEnum.Marsh
       };
 
       return (p.elevation, p.moisture) switch {
-        (> .8f, > .50f) => Biome.Snow,
-        (> .8f, > .33f) => Biome.Tundra,
-        (> .8f, > .16f) => Biome.Bare,
-        (> .8f,      _) => Biome.Scorched,
-        (> .6f, > .66f) => Biome.Taiga,
-        (> .6f, > .33f) => Biome.Shrubland,
-        (> .6f,      _) => Biome.TemperatD,
-        (> .3f, > .83f) => Biome.TempRainF,
-        (> .3f, > .50f) => Biome.TempDeciF,
-        (> .3f, > .16f) => Biome.Grassland,
-        (> .3f,      _) => Biome.TemperatD,
-        (    _, > .66f) => Biome.TropRainF,
-        (    _, > .33f) => Biome.TropSeasF,
-        (    _, > .16f) => Biome.Grassland,
-        (    _,      _) => Biome.SubTropiD,
+        (> .8f, > .50f) => BiomeEnum.Snow,
+        (> .8f, > .33f) => BiomeEnum.Tundra,
+        (> .8f, > .16f) => BiomeEnum.Bare,
+        (> .8f,      _) => BiomeEnum.Scorched,
+        (> .6f, > .66f) => BiomeEnum.Taiga,
+        (> .6f, > .33f) => BiomeEnum.Shrubland,
+        (> .6f,      _) => BiomeEnum.TemperateDesert,
+        (> .3f, > .83f) => BiomeEnum.TemperateRainyForest,
+        (> .3f, > .50f) => BiomeEnum.TemperateDecidousForest,
+        (> .3f, > .16f) => BiomeEnum.Grassland,
+        (> .3f,      _) => BiomeEnum.TemperateDesert,
+        (    _, > .66f) => BiomeEnum.TropicalRainyForest,
+        (    _, > .33f) => BiomeEnum.TropicalSeasonForest,
+        (    _, > .16f) => BiomeEnum.Grassland,
+        (    _,      _) => BiomeEnum.SubtropicalDesert,
       };
     }
 
