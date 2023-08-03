@@ -10,29 +10,20 @@ public class ProgressTimer {
   readonly string[] label;
   readonly float[] ratio;
   readonly bool[] detail;
-  Vector2Int detailStep;
+  (int x, int y) detailStep;
 
   public ProgressTimer(string name, params (string label, float ratio, bool detail)[] steps) {
     this.name = name;
-    label = steps.Select(p => p.label).Append("Finished").ToArray();
-    ratio = steps.Select(p => p.ratio).Append(1).ToArray();
-    detail = steps.Select(p => p.detail).Append(false).ToArray();
+    label  = steps.Select(p => p.label ).Append("Finished.").ToArray();
+    ratio  = steps.Select(p => p.ratio ).Append(     1     ).ToArray();
+    detail = steps.Select(p => p.detail).Append(   false   ).ToArray();
   }
 
   public void Next() => Current += Finished ? 0 : 1;
-  public void SetDetail(int x, int y) => detailStep = new(x, y);
+  public void SetDetail(int x, int y) => detailStep = (x, y);
   public void Reset() => Current = 0;
 
-  public float CurrentRatio /*{ get {
-    float r;
-    try {r = detail[Current]
-      ? ratio[Current] + (float)detailStep.x/detailStep.y * (ratio[Current+1] - ratio[Current])
-      : ratio[Current];
-    } catch {
-      Debug.Log($"[ProgressTimer] {name} {Current} {ratio?.Length} {detail?.Length}");
-      throw;
-    } return r;
-  }}*/
+  public float CurrentRatio
     => detail[Current]
       ? ratio[Current] + (float)detailStep.x/detailStep.y * (ratio[Current+1] - ratio[Current])
       : ratio[Current];

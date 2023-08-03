@@ -23,6 +23,7 @@ namespace Assets.Maps
     const int NUM_LLOYD_RELAXATIONS = 2;
     
     public Graph Graph { get; private set; }
+    public MapTexture MapTexture { get; private set; }
 
     public ProgressTimer Timer { get; private set; } = new(
       "Map",
@@ -50,7 +51,9 @@ namespace Assets.Maps
       Timer.Next();
       var voronoi = new Voronoi(points, colors, new Rect(0, 0, size, size));
       Graph = new Graph(points, voronoi, (Size)size);
+      
       Timer.Next();
+      MapTexture = new MapTexture(1);
       initialized = true;
     }
 

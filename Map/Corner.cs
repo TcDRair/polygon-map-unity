@@ -13,10 +13,10 @@ public class Corner
   public bool water;  // lake or ocean
   internal bool _marked; // Once this corner is marked with land or water, true.
   public bool coast;  // touches ocean and land polygons
-  public bool Land => !ocean && !water && !coast;
+  public bool InLand => !ocean && !water && !coast;
   public bool border;  // at the edge of the map
-  public float elevation;  // 0.0-1.0
-  public float moisture = 0;  // 0.0-1.0
+  public float elevation;  // -1 ~ 1
+  public float moisture = 0;  // 0 ~ 1
   public float X => point.x;
   public float Y => point.y;
 

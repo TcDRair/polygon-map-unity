@@ -24,19 +24,15 @@ namespace Assets.Maps
     public Texture2D Map { get; private set; } = new(0, 0);
     public Texture2D MapData { get; private set; } = new(0, 0); // R: height, G : moisture, B : occupy, A : biome
     /// <summary>주어진 Map 개체에 대한 시각적 정보를 반환합니다.</summary>
-    public IEnumerator CreateMapMaterial(Map map)
-    {
+    public IEnumerator CreateMapMaterial(Map map) {
       int _textureWidth = map.Width * textureScale;
       int _textureHeight = map.Height * textureScale;
       Map.Reinitialize(_textureWidth, _textureHeight);
       MapData.Reinitialize(_textureWidth, _textureHeight);
       MapData.SetPixels(Enumerable.Repeat(Color.clear, MapData.width * MapData.height).ToArray());
-      var lines = map.Graph.vars.edges.Where(p => p.v0 != null).Select(p => new[] 
-      { 
-        p.v0.X, p.v0.Y,
-        p.v1.X, p.v1.Y
-      }).ToArray();
+      var lines = map.Graph.vars.edges.Where(p => p.v0 != null).Select(p => new[] { p.v0.X, p.v0.Y, p.v1.X, p.v1.Y }).ToArray();
 
+      Timer.Next();
       int total = map.Graph.vars.centers.Count, count = 0;
       foreach (var c in map.Graph.vars.centers) {
         Map.FillPolygon(c.corners.Select(p => p.point * textureScale), Biome.ToColor(c.biome));
@@ -51,13 +47,13 @@ namespace Assets.Maps
         DrawLine(Map, line.v0.X, line.v0.Y, line.v1.X, line.v1.Y, Color.blue);
         if (Timer.Elapsed) yield return null;
       }
+
       Timer.Next();
       Map.Apply();
       MapData.Apply();
       yield return null;
       Timer.Next();
     }
-    public byte[] HeightmapRaw => MapData.GetPixels32().Select(p => p.r).ToArray();
 
     private void DrawLine(Texture2D texture, float x0, float y0, float x1, float y1, Color color) {
       texture.DrawLine((int)(x0 * textureScale), (int)(y0 * textureScale), (int)(x1 * textureScale), (int)(y1 * textureScale), color);

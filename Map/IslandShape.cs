@@ -70,7 +70,7 @@ namespace Assets.Maps
       _gap /= 2;
     }
     public static void ResetPerlin() { SeaLevel = .5f; _gap = .25f; }
-    public static float MIDPOINT_VALUE = 0.25f;
+    public static float MIDPOINT_VALUE = .66f;
     private const float ZOOM_FACTOR = 2.5f;
 
     // The square shape fills the entire space with land

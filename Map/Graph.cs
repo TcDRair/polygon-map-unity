@@ -5,8 +5,6 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
-using static Unity.EditorCoroutines.Editor.EditorCoroutineUtility;
-
 using Assets.Util;
 namespace Assets.Maps
 {
@@ -21,9 +19,9 @@ namespace Assets.Maps
       public List<Edge> edges = new();
       public Dictionary<(int, int), List<Center>> centerMap = new();
       public Dictionary<(int, int), List<Corner>> cornerMap = new();
-      public IEnumerable<Corner> LandCorners  => corners.Where(p => p.Land);
-      public IEnumerable<Corner> OceanCorners => corners.Where(p => p.ocean || p.coast);
-      public IEnumerable<Corner> WaterCorners => corners.Where(p => !p.Land);
+      public IEnumerable<Corner> InLandCorners  => corners.Where(p => p.InLand);
+      public IEnumerable<Corner> OceanCorners => corners.Where(p => p.ocean);
+      public IEnumerable<Corner> WaterCorners => corners.Where(p => p.water);
     } public Variables vars;
 
     readonly int _size;
@@ -34,35 +32,31 @@ namespace Assets.Maps
     
     public ProgressTimer Timer { get; private set; } = new(
       "Graph",
-      ("Building Graph Points"                 , .00f, false),
-      ("Building Graph Centers"                , .02f, false),
-      ("Building Graph Delunay Points"         , .04f,  true),
-      ("Building Graph Sorted Corners"         , .64f,  true),
-      ("Assigning Water Level"                 , .66f, false),
-      ("Assigning Corner Elevations"           , .68f, false),
-      ("Assigning Center Borders"              , .70f, false),
-      ("Assigning Center Oceans"               , .72f, false),
-      ("Assigning Center Coasts"               , .74f, false),
-      ("Assigning Corners"                     , .76f, false),
-      ("Redistributing Land Corner Elevations" , .78f, false),
-      ("Redistributing Water Corner Elevations", .80f, false),
-      ("Assign Center Elevations"              , .82f, false),
-      ("Calculating Downslopes"                , .84f, false),
-      ("Calculating Watersheds"                , .86f, false),
-      ("Calculating Rivers"                    , .88f, false),
-      ("Calculating Freshwater Moisture"       , .90f, false),
-      ("Calculating Land Moisture"             , .92f, false),
-      ("Calculating Center Moisture"           , .94f, false),
-      ("Setting Biomes"                        , .96f, false),
-      ("Finishing Graph Generating"            , .98f, false)
+      ("Building Graph Points"           , .00f, false),
+      ("Building Graph Centers"          , .02f, false),
+      ("Building Graph Delunay Points"   , .04f,  true),
+      ("Building Graph Sorted Corners"   , .64f,  true),
+      ("Assigning Water Level"           , .66f, false),
+      ("Assigning Borders"               , .70f, false),
+      ("Assigning Oceans"                , .72f, false),
+      ("Assigning Coasts"                , .74f, false),
+      ("Assigning Corner Elevations"     , .78f, false),
+      ("Redistributing Corner Elevations", .80f, false),
+      ("Assigning Center Elevations"     , .82f, false),
+      ("Calculating Downslopes"          , .84f, false),
+      ("Calculating Watersheds"          , .86f, false),
+      ("Calculating Rivers"              , .88f, false),
+      ("Calculating Freshwater Moisture" , .90f, false),
+      ("Calculating Land Moisture"       , .92f, false),
+      ("Calculating Center Moisture"     , .94f, false),
+      ("Setting Biomes"                  , .96f, false)
     );
 
-    /// <summary>에디트 타임에 그래프를 그립니다.</summary>
-    public IEnumerator InitGraph(float lakeThreshold, float landRatio, int riverCount) {
+    public IEnumerator GenerateGraph(float landRatio, int riverCount) {
       yield return BuildGraph();
-      yield return AssignCornerElevations(landRatio);
-      yield return AssignOceanCoastAndLand(lakeThreshold);
-      yield return RedistributeElevations();
+      yield return AssignLands(landRatio);
+      yield return AssignCoasts();
+      yield return AssignElevations();
       yield return AssignPolygonElevations();
       yield return CalculateDownslopes();
       yield return CalculateWatersheds();
@@ -76,26 +70,6 @@ namespace Assets.Maps
       }
       Timer.Next();
     }
-    /// <summary>런타임에 그래프를 그립니다.</summary>
-    public IEnumerator InitGraph(float lakeThreshold, float landRatio, int riverCount, MonoBehaviour mono) {
-      if (mono == null) throw new ArgumentNullException($"유효한 호출 대상 아님({nameof(mono)})");
-      yield return BuildGraph();
-      yield return AssignCornerElevations(landRatio);
-      yield return AssignOceanCoastAndLand(lakeThreshold);
-      yield return RedistributeElevations();
-      yield return AssignPolygonElevations();
-      yield return CalculateDownslopes();
-      yield return CalculateWatersheds();
-      yield return CreateRivers(riverCount);
-      yield return AssignCornerMoisture();
-      yield return AssignPolygonMoisture();
-      foreach (var c in vars.centers) {
-        c.biome = GetBiome(c);
-        if (Timer.Elapsed) yield return null;
-      }
-      Timer.Next();
-    }
-
 
     #region Graph Building
     private IEnumerator BuildGraph() {
@@ -198,7 +172,6 @@ namespace Assets.Maps
           edge.d0.Distinct();
           edge.d1.Distinct();
         }
-        else Debug.Log("Not Visible?");
         #endregion
         ++count;
         if (Timer.Elapsed) {
@@ -251,8 +224,8 @@ namespace Assets.Maps
     #endregion
 
     #region Elevations
-    private IEnumerator AssignCornerElevations(float landRatio) {
-      //* 고도 설정
+    private IEnumerator AssignLands(float landRatio) {
+      //* 육지 생성
       #region comment
       /* 원문 :
        * Determine elevations and water at Voronoi corners. By
@@ -276,15 +249,15 @@ namespace Assets.Maps
       */
       #endregion
 
+      Timer.Next();
       //* 지정 높이 기준으로 각 Corner의 물 여부 결정, 원하는 육지 비율에 도달할 때까지 반복
       int _tries = 1;
-      Timer.Next();
       IslandShape.ResetPerlin();
       var history = new List<float>();
       do {
         int water = 0;
         var IsLand = IslandShape.MakePerlin(_size);
-        foreach (var q in vars.corners) { if (q.water = !IsLand(q.point)) water++; }
+        foreach (var q in vars.corners) if (q.water = !IsLand(q.point)) water++;
         var result = 1 - ((float)water/vars.corners.Count);
         history.Add(result);
 
@@ -293,50 +266,9 @@ namespace Assets.Maps
         if (Timer.Elapsed) yield return null;
       } while (++_tries < 10);
       // Debug.Log($"land ratio: [{string.Join(',', history)} / {landRatio} -> {IslandShape.SeaLevel}]");
-
-      var queue = new Queue<Corner>();
-      foreach (var c in vars.corners) {
-        // 맵 경계면을 0으로 처리. 해안 작업에 추가
-        if (c.border) {
-          c.elevation = 0;
-          queue.Enqueue(c);
-        }
-        // 나머지는 최대치로 초기화
-        else c.elevation = float.PositiveInfinity;
-      }
-
-      //* 해안 설정
-      #region comment
-      /*
-       * Traverse the graph and assign elevations to each point. As we
-       * move away from the map border, increase the elevations. This
-       * guarantees that rivers always have a way down to the coast by
-       * going downhill (no local minima).
-      */
-
-      /*
-       * Graph를 쭉 가로지르면서 각 점들의 높이를 할당합니다.
-       * 맵 경계면에서 멀어지면서 높이를 증가시킵니다.
-       * 이는 강이 낮은 곳으로 흐르면서 항상 해안으로 향하게 만듭니다. (지역 최소점 없음)
-      */
-      #endregion
-
-      Timer.Next();
-      //* 1. (높이가 설정된) Corner q에서
-      while (queue.TryDequeue(out var q)) {
-        //* 2. 높이가 아직 설정되지 않은 인접 Corner s가 있으면
-        foreach (var s in q.adjacent) if (s.elevation > float.MaxValue) {
-          //* 3. 현재 corner보다 높게 설정 (water Corner는 미미하게)
-          var rnd = UnityEngine.Random.value;
-          s.elevation = q.elevation + (q.water && s.water ? .01f : 1) * rnd;
-          //* 4. 한 뒤 해당 Corner에서도 1~3 수행
-          queue.Enqueue(s);
-        }
-        if (Timer.Elapsed) yield return null;
-      }
     }
 
-    private IEnumerator AssignOceanCoastAndLand(float lakeThreshold) {
+    private IEnumerator AssignCoasts() {
       #region comment
       /* 원문
        * Compute polygon attributes 'ocean' and 'water' based on the
@@ -357,53 +289,43 @@ namespace Assets.Maps
       */
       #endregion
 
-      //var p:Center, q:Corner, r:Center, numWater:int;
-
-      //* 경계면 Center는 항상 'ocean' 속성이 부여됩니다.
       Timer.Next();
-      foreach(var c in vars.centers) {
-        if (c.corners.Any(q => q.border)) {
-          c.border = true;
-          c.ocean = true;
-          c.corners.ForEach(q => q.water = true);
+      //* 1. 'border' 및 인접 Corner는 항상 'ocean'입니다.
+      IEnumerable<Corner> borders = vars.corners.Where(c => c.border);
+      for (int i = 0; i < 3; i++) {
+        foreach (var q in borders) { q.ocean = true; q.water = true; }
+        borders = borders.SelectMany(c => c.adjacent).Distinct().Where(c => !c.ocean);
+        if (Timer.Elapsed) yield return null;
+      }
+      Timer.Next();
+      //* 2. 'ocean'에서 접근할 수 있는 모든 'water' Corner는 'ocean'입니다.
+      Queue<Corner> oceanQ = new(vars.corners.Where(p => p.ocean));
+      while (oceanQ.TryDequeue(out var q)) {
+        foreach (var s in q.adjacent.Where(c => c.water && !c.ocean)) {
+          s.ocean = true;
+          oceanQ.Enqueue(s);
         }
         if (Timer.Elapsed) yield return null;
       }
+      Timer.Next();
+      //* 3. 육지이면서 'water'와 인접한 Corner는 'coast'입니다.
+      foreach (var q in vars.corners.Where(p => !p.water && p.adjacent.Exists(r => r.water))) q.coast = true;
       
-      //? 맵의 미적 요소 보강을 위해 경계면으로부터 3칸 이내의 Center는 모두 'ocean' 속성이 부여됩니다.
-      var n = 3 * (_size / (int)Size.s4);
-      while (n-- > 0) foreach (var q in vars.centers.Where(p => p.ocean)) q.neighbors.ForEach(r => r.ocean = true);
-      
-
-
-      //* 폴리곤(Center)은 'ocean'이거나 'water'인 Corner를 지정된 비율 이상으로 가지고 있을 때 'water' 속성을 가집니다.
-      vars.centers.ForEach(p => { if (p.ocean || (float)p.corners.Count(c => c.water)/p.corners.Count() > lakeThreshold) p.water = true; });
-
-      //* 경계면에 연결된 'water' 속성의 Center에 'ocean' 속성을 추가합니다.
-      Timer.Next();
-      while (vars.centers.Where(c => c.ocean).Count(o => o.neighbors.Count(r => {
-        if (r.water && !r.ocean) { r.ocean = true; return true; }
-        return false;
-      }) > 0) > 0) { if (Timer.Elapsed) yield return null; }
-
-      //* 'land' 속성의 Center와 'ocean' 속성의 Center 둘 모두를 이웃으로 갖고 있는 폴리곤은 'coast' 속성을 가집니다.
-      Timer.Next();
-      vars.centers.ForEach(p => p.coast = p.neighbors.Exists(r => r.ocean) && p.neighbors.Exists(r => !r.water));
-      if (Timer.Elapsed) yield return null;
-
-      //* 마지막으로 Corner에 대해 모든 인접 폴리곤이 'ocean'이면 'ocean', 'land'면 'land', 다른 경우 'coast' 속성을 부여합니다.
-      Timer.Next();
-      foreach (var q in vars.corners) {
-        bool ocean = q.touches.Exists(p => p.ocean); // 인접 폴리곤에 ocean이 하나라도 있으면 true
-        bool land = q.touches.Exists(p => !p.water); // 인접 폴리곤에 land가 하나라도 있으면 true
-        q.ocean = ocean && !land; // ocean 인접이면서 land가 근처에 없으면 항상 ocean 판정.
-        q.coast = ocean && land; // ocean 인접이면서 land가 근처에 있으면 coast 판정.
-        q.water = !q.coast && !land; // land가 근처에 없으면서 coast가 아니면 water 판정.
+      //* 4. Center는 가지고 있는 Corner의 속성에 의존합니다. 이 때 'coast'나 'border' 속성은 하나라도 있을 경우 따릅니다.
+      foreach (var q in vars.centers) {
+        q.ocean = q.corners.Any(p => p.ocean);
+        q.water = q.corners.Any(p => p.water);
+        q.coast = !q.water && q.corners.Any(p => p.coast);
+        q.border = q.corners.Any(p => p.border);
         if (Timer.Elapsed) yield return null;
       }
+
+      //? 유효성 검증
+      if (vars.corners.Any(c => c.coast && c.water)) Debug.LogError("Corner Coast Error");
+      if (vars.centers.Any(c => c.coast && c.water)) Debug.LogError("Center Coast Error");
     }
 
-    private IEnumerator RedistributeElevations() {
+    private IEnumerator AssignElevations() {
       #region comment
       /* 원문
        * Change the overall distribution of elevations so that lower
@@ -419,34 +341,61 @@ namespace Assets.Maps
        * 따라서 Corner를 정렬한 후 각 Corner의 고도를 목표 고도로 재설정합니다.
       */
       #endregion
-
-      // const float SCALE_FACTOR = 1.2f; //고고도 영역을 증가시킵니다. 상위 20%의 고도 비율을 중심으로 이 값을 조정합니다.
-      const float referenceDepth = -1f; // 기준 깊이 값을 의미합니다. 기본값은 상대 고도 1f에 대응하는 -1f입니다.
-      //* Ocean, Coast도 아닌 모든 Corner에 대해 다음의 작업을 수행합니다. 'lake' 여부와 무관합니다.
-      var locations = vars.LandCorners.OrderBy(p => p.elevation).ToList();
-      int count = locations.Count;
       
-      //* 모든 Land Corner를 고도 오름차순으로 조정한 뒤 적절한 비율로 해발고도를 입력합니다.
+      //* 초기 고도 설정 : 경계면 -1, 해안 0, 나머지 미설정(무한대)
+      foreach (var c in vars.corners)
+        c.elevation =
+          c.border ? -1 :
+          c.coast  ?  0 :
+          float.PositiveInfinity;
+      Queue<Corner> oceanQ = new(vars.corners.Where(c => c.elevation == -1));
+      Queue<Corner> coastQ = new(vars.corners.Where(c => c.elevation ==  0));
+
+      //* 육지 고도 설정
       Timer.Next();
-      for (int p = 0; p < count; p++) { 
-        // locations[p].elevation = 1 - Mathf.Pow(1 - (float)p/count, 0.5f * SCALE_FACTOR);
-        locations[p].elevation = 1 - (float)p/count;
+      //* 1. 고도가 설정된 Corner에서
+      while (coastQ.TryDequeue(out var q)) {
+        //* 2. 고도가 아직 설정되지 않은 인접 육지 Corner를 찾아 (1+)
+        foreach (var s in q.adjacent.Where(c => c.elevation > float.MaxValue && !c.ocean)) {
+          //* 3. 현재 corner보다 높게 설정 (water Corner는 미미하게)
+          var rnd = UnityEngine.Random.value;
+          s.elevation = q.elevation + (q.water && s.water ? .001f : 1) * rnd;
+          //* 4. 한 뒤 해당 Corner에서도 동일 과정을 수행
+          coastQ.Enqueue(s);
+        }
+        if (Timer.Elapsed) yield return null;
+      }
+      //* 수심 설정
+      while (oceanQ.TryDequeue(out var q)) {
+        foreach (var s in q.adjacent.Where(c => c.elevation > float.MaxValue && c.ocean)) {
+          var rnd = UnityEngine.Random.value;
+          s.elevation = q.elevation + .001f * rnd;
+          oceanQ.Enqueue(s);
+        }
         if (Timer.Elapsed) yield return null;
       }
 
-      //* Land가 아닌 Corner의 고도를 조정합니다.
-      //? 기존 코드에서는 0으로 초기화하였으나, 필요에 따라 점차 음의 고도를 갖게 조정합니다.
-      float maxDepth = vars.WaterCorners.Max(x => x.elevation); // 가장 높은 고도를 의미하며, 변환 시 가장 작은 절댓값을 가집니다.
-      float factor = referenceDepth / (maxDepth - vars.WaterCorners.Min(x => x.elevation));
       Timer.Next();
-      foreach (var x in vars.WaterCorners) {
-        x.elevation = (maxDepth - x.elevation) * factor;
+      //* 모든 내륙 Corner를 오름차순으로 조정된 값을 입력합니다.
+      var interiors = vars.corners
+        .Where(c => !c.ocean && !c.coast)
+          .OrderBy(p => p.elevation)
+            .ToList();
+      int count = interiors.Count;
+      for (int p = 0; p < count; p++) {
+        interiors[p].elevation = (float)p/count;
         if (Timer.Elapsed) yield return null;
       }
-      
-      //? 경계면의 Corner는 모두 -1의 고도를 갖게 됩니다.
 
-      //* 모든 Land Corner에 대해 인접한 모든 Corner의 고도를 평균하여 입력합니다.
+      //* Ocean Corner를 설정합니다.
+      //? Ocean Corner는 깊이를 가집니다.
+      var oceans = vars.OceanCorners.OrderBy(p => p.elevation);
+      float maxDepth = oceans.First().elevation, minDepth = oceans.Last().elevation;
+      float factor = 1 / (minDepth - maxDepth); // 기준 깊이에 대한 비율을 계산합니다.
+      foreach (var x in oceans) {
+        x.elevation = (x.elevation - minDepth) * factor; // 음수 값을 가집니다.
+        if (Timer.Elapsed) yield return null;
+      }
     }
 
     private IEnumerator AssignPolygonElevations() {
@@ -482,38 +431,17 @@ namespace Assets.Maps
        * TODO : 분수령은 현재 corner에서 계산되지만, polygon의 중심으로 계산하는 것이 더 유용할 것입니다.
       */
       #endregion
-      //TODO?! 전체를 여러 번 순회하지 않고, 높이순으로 정렬한 다음에 한 번만 해도 되는 방법이 있지 않을까?
       //* 모든 Corner의 분수령을 계산하고 제거를 용이하게 하기 위해 LinkedList를 사용합니다.
       Timer.Next();
-      foreach (var c in vars.LandCorners.OrderBy(c => c.elevation)) {
+      foreach (var c in vars.InLandCorners.OrderBy(c => c.elevation)) {
         c.watershed = c.downslope.watershed;
         if (Timer.Elapsed) yield return null;
       }
       //? initial downslope & watershed is "this". so above line means when c is actual watershed corner: c.this = c.this.this;
-      foreach (var c in vars.LandCorners) {
+      foreach (var c in vars.InLandCorners) {
         c.watershed.watershed_size++;
         if (Timer.Elapsed) yield return null;
       }
-
-      /*
-      LinkedList<Corner> lands = new(vars.LandCorners);
-      int count = 0;
-      do {
-        var current = lands.First;
-        List<Corner> history = new();
-        while (current != null) {
-          var p = current.Value;
-          history.Add(p);
-          //? 다음의 조건에 따라 분류합니다: 대상 Corner가 지역 최저고도일 경우 
-          if ((p == p.downslope) || history.Contains(p.watershed = p.watershed.downslope) || p.watershed.Land is false) lands.Remove(current);
-          current = current.Next;
-          if (timer.Elapsed) yield return null;
-        }
-      } while(lands.Count > 0 && ++count < 50);
-
-      //* 분수령으로 지정된 Corner의 크기를 설정합니다.
-      foreach (var q in vars.corners) q.watershed.watershed_size++;*/
-      // Debug.Log(LandCorners.Max(p => p.watershed.watershed_size) + "," + count);
     }
     #endregion
 
@@ -557,15 +485,15 @@ namespace Assets.Maps
 
       var queue = new Queue<Corner>();
       
-      //* 담수 습도 설정. (다른 Corner의 moisture는 0으로 초기화되어 있음)
       Timer.Next();
+      //* 담수 습도 설정. (다른 Corner의 moisture는 0으로 초기화되어 있음)
       foreach (var corner in vars.corners.Where(p => (p.water || p.river > 0) && !p.ocean)) {
         corner.moisture = corner.river > 0 ? Mathf.Min(10, 0.75f*corner.river, 2) : 1.0f;
         queue.Enqueue(corner); // ↑ 15 이상의 river에서 습도가 최대치에 달함. //TODO 추후 습도 적정량으로 조절
         if (Timer.Elapsed) yield return null;
       }
-      //* 담수 근처 육지 습도 설정
       Timer.Next();
+      //* 담수 근처 육지 습도 설정
       while (queue.Any()) {
         var q = queue.Dequeue();
         float adjacentMoisture = q.moisture * 0.9f;
@@ -589,19 +517,6 @@ namespace Assets.Maps
         if (Timer.Elapsed) yield return null;
       }
     }
-
-    //? 습도를 재분배할 이유가 있을까
-    private void RedistributeMoisture()
-    {
-      // Change the overall distribution of moisture to be evenly distributed.
-      var locations = vars.LandCorners.ToList();
-      locations.Sort((a, b) => a.moisture.CompareTo(b.moisture));
-
-      for (var i = 0; i < locations.Count; i++)
-      {
-        locations[i].moisture = (float)i / (locations.Count - 1);
-      }
-    }
     #endregion
 
     #region Simple Methods
@@ -611,7 +526,6 @@ namespace Assets.Maps
       for (int pX = x - rad; pX <= x + rad; pX++) for (int pY = y - rad; pY <= y + rad; pY++) keys.Add((pX, pY));
       return keys;
     }
-
     /// <summary>두 폴리곤에 모두 포함된 Edge를 찾습니다. 찾지 못하면 null을 반환합니다.</summary>
     private Edge FindIntersectionEdge(Center p, Center r) {
       foreach (var edge in p.borders) if (edge.d0 == r || edge.d1 == r) return edge;
@@ -630,7 +544,7 @@ namespace Assets.Maps
       if (p.water) return p.elevation switch {
         > .8f => BiomeEnum.Ice,
         > .1f => BiomeEnum.Lake,
-        _ => BiomeEnum.Marsh
+        _     => BiomeEnum.Marsh
       };
 
       return (p.elevation, p.moisture) switch {
