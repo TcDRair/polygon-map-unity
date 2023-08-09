@@ -143,7 +143,7 @@ public static class Vector2Extensions
           var normalizedWeights = weights.Select(w => w / weights.Sum());
           float h = cs.Zip(normalizedWeights, (c, w) => (c.elevation + 1)/2 * w).Sum(),
             m = cs.Zip(normalizedWeights, (c, w) => c.moisture * w).Sum(),
-            b = ((Biome)center.biome).Ratio,
+            b = center.biome.ToFloat(),
             l = cs.Any(c => c.ocean) ? 0 : 1;
           return new Color(h, m, b, l);
         }
@@ -154,7 +154,7 @@ public static class Vector2Extensions
       (x, y) => {
         float h = (center.elevation + 1)/2,
           m = center.moisture,
-          b = ((Biome)center.biome).Ratio,
+          b = center.biome.ToFloat(),
           l = center.ocean ? 0 : 1;
         return new Color(h, m, b, l);
       }
@@ -165,4 +165,5 @@ public static class Vector2Extensions
 public static class Vector3Extensions {
   public static Vector2 XZ(this Vector3 v) => new(v.x, v.z);
   public static Vector3 XZToX0Z(this Vector2 v) => new(v.x, 0, v.y);
+  public static Vector3 XZToXYZ(this Vector2 v, float y = 0) => new(v.x, y, v.y);
 }

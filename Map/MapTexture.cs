@@ -35,7 +35,7 @@ namespace Assets.Maps
       Timer.Next();
       int total = map.Graph.vars.centers.Count, count = 0;
       foreach (var c in map.Graph.vars.centers) {
-        Map.FillPolygon(c.corners.Select(p => p.point * textureScale), Biome.ToColor(c.biome));
+        Map.FillPolygon(c.corners.Select(p => p.point * textureScale), c.biome.Color());
         MapData.FillPolygon(c, textureScale, false);
 
         ++count;

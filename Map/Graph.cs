@@ -537,32 +537,32 @@ namespace Assets.Maps
       return null;
     }
 
-    BiomeEnum GetBiome(Center p) {
+    Biome GetBiome(Center p) {
       //TODO 비율 조정 기능 추가
-      if (p.ocean) return BiomeEnum.Ocean;
-      if (p.coast) return BiomeEnum.Beach;
+      if (p.ocean) return Biome.Ocean;
+      if (p.coast) return Biome.Beach;
       if (p.water) return p.elevation switch {
-        > .8f => BiomeEnum.Ice,
-        > .1f => BiomeEnum.Lake,
-        _     => BiomeEnum.Marsh
+        > .8f => Biome.Ice,
+        > .1f => Biome.Lake,
+        _     => Biome.Marsh
       };
 
       return (p.elevation, p.moisture) switch {
-        (> .8f, > .50f) => BiomeEnum.Snow,
-        (> .8f, > .33f) => BiomeEnum.Tundra,
-        (> .8f, > .16f) => BiomeEnum.Bare,
-        (> .8f,      _) => BiomeEnum.Scorched,
-        (> .6f, > .66f) => BiomeEnum.Taiga,
-        (> .6f, > .33f) => BiomeEnum.Shrubland,
-        (> .6f,      _) => BiomeEnum.TemperateDesert,
-        (> .3f, > .83f) => BiomeEnum.TemperateRainyForest,
-        (> .3f, > .50f) => BiomeEnum.TemperateDecidousForest,
-        (> .3f, > .16f) => BiomeEnum.Grassland,
-        (> .3f,      _) => BiomeEnum.TemperateDesert,
-        (    _, > .66f) => BiomeEnum.TropicalRainyForest,
-        (    _, > .33f) => BiomeEnum.TropicalSeasonForest,
-        (    _, > .16f) => BiomeEnum.Grassland,
-        (    _,      _) => BiomeEnum.SubtropicalDesert,
+        (> .8f, > .50f) => Biome.Snow,
+        (> .8f, > .33f) => Biome.Tundra,
+        (> .8f, > .16f) => Biome.Bare,
+        (> .8f,      _) => Biome.Scorched,
+        (> .6f, > .66f) => Biome.Taiga,
+        (> .6f, > .33f) => Biome.Shrubland,
+        (> .6f,      _) => Biome.TemperateDesert,
+        (> .3f, > .83f) => Biome.TemperateRainyForest,
+        (> .3f, > .50f) => Biome.TemperateDecidousForest,
+        (> .3f, > .16f) => Biome.Grassland,
+        (> .3f,      _) => Biome.TemperateDesert,
+        (    _, > .66f) => Biome.TropicalRainyForest,
+        (    _, > .33f) => Biome.TropicalSeasonForest,
+        (    _, > .16f) => Biome.Grassland,
+        (    _,      _) => Biome.SubtropicalDesert,
       };
     }
 
