@@ -18,8 +18,8 @@ namespace Assets.Maps
   public class Map : IProgressTimerProvider
   {
     readonly int size;
-    public int Width { get; init; }
-    public int Height { get; init; }
+    public int Width { get; set; }
+    public int Height { get; set; }
     const int NUM_LLOYD_RELAXATIONS = 2;
     
     public Graph Graph { get; private set; }
